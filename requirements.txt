@@ -1,0 +1,6 @@
+anthropic
+python-dotenv
+coinbase-advanced-py
+pandas
+numpy
+requests
