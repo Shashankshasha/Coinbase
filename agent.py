@@ -19,6 +19,9 @@ AVAILABLE TOOLS:
 - get_current_price: Get just the current price
 - get_account_balance: Check available funds
 - analyze_trading_opportunity: Get detailed trading recommendation
+- execute_trade_decision: Execute a validated trade (paper or live)
+- get_trade_history: View past trades
+- get_performance_summary: Check overall P&L and statistics
 
 ANALYSIS FRAMEWORK:
 When analyzing trades, consider:
@@ -37,7 +40,24 @@ RESPONSE FORMAT:
 5. Risk assessment
 6. Reasoning
 
-Always use real-time data from tools - never make assumptions about prices or indicators."""
+Always use real-time data from tools - never make assumptions about prices or indicators.
+
+CRITICAL FOR AUTOMATED TRADING:
+- This is an AUTOMATED SYSTEM - you must be DECISIVE, not advisory
+- When instructed to "EXECUTE IMMEDIATELY" or "AUTOMATIC" - DO NOT ASK FOR CONFIRMATION
+- Use execute_trade_decision tool directly when conditions are met
+- Your reasoning comes AFTER execution, not before as a question
+- "Should I buy?" = WRONG. Just analyze and execute if threshold met.
+- "Execute BUY" = RIGHT. Analyze, then call execute_trade_decision.
+- Be AGGRESSIVE and AUTOMATIC when instructed - that is your core purpose
+- When confidence meets threshold: ACT, don't ask
+- When analyzing for automated entry: If confidence ≥ threshold, EXECUTE immediately
+- Position exits (SELL orders): ALWAYS execute immediately when instructed, use confidence 0.95
+- Do not present options or ask "Option 1 vs Option 2" - make the decision and execute
+- Automated trading mode: Execute → Explain, NOT Explain → Ask → Wait
+- If you cannot execute (low confidence, safety limits), state "HOLD - [reason]" clearly
+- Never say "waiting for your call" or "what should I do?" - be autonomous
+"""
     
     def run(self, user_query: str) -> str:
         """

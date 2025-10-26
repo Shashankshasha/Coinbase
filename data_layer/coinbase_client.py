@@ -14,15 +14,15 @@ class CoinbaseClient:
             api_secret=COINBASE_API_SECRET
         )
     
-    def get_current_price(self, product_id: str = "ETH-GBP") -> dict:
+    def get_current_price(self, product_id: str = "SOL-GBP") -> dict:
         """
         Get current spot price for a trading pair.
         
         Args:
-            product_id: Trading pair (e.g., 'ETH-GBP', 'BTC-USD')
+            product_id: Trading pair (e.g., 'SOL-GBP', 'BTC-USD')
             
         Returns:
-            dict: {"price": 2345.67, "product_id": "ETH-GBP"}
+            dict: {"price": 2345.67, "product_id": "SOL-GBP"}
         """
         try:
             ticker = self.client.get_product(product_id)
@@ -36,7 +36,7 @@ class CoinbaseClient:
             print(f"Error fetching price: {e}")
             return None
     
-    def get_candles(self, product_id: str = "ETH-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
+    def get_candles(self, product_id: str = "SOL-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
         """
         Get historical candle data.
         
@@ -132,7 +132,7 @@ class CoinbaseClient:
             # Return empty dict on error - not critical for trading analysis
             return {}
     
-    def get_product_info(self, product_id: str = "ETH-GBP") -> dict:
+    def get_product_info(self, product_id: str = "SOL-GBP") -> dict:
         """
         Get detailed product information including fees.
         
