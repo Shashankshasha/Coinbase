@@ -1,5 +1,5 @@
 from tracking.trade_logger import TradeLogger
-from profit_strategy import ProfitStrategy
+from profit_strategy_enhanced import ProfitStrategyEnhanced  # UPDATED!
 from data_layer.market_data import MarketData
 from datetime import datetime
 from config import TRADING_PAIR, PROFIT_TARGET_GBP, MIN_CONFIDENCE
@@ -12,12 +12,13 @@ def clear_screen():
 
 def display_dashboard():
     """
-    LIVE DASHBOARD - Auto-refreshing P&L monitor
+    ENHANCED LIVE DASHBOARD - Shows trailing stop status
+    Auto-refreshing P&L monitor with trailing stop indicators
     Updates every 30 seconds with real-time data
     Press Ctrl+C to exit
     """
     logger = TradeLogger("trading_bot.db")
-    strategy = ProfitStrategy("trading_bot.db")
+    strategy = ProfitStrategyEnhanced("trading_bot.db")  # UPDATED!
     market = MarketData()
     
     clear_screen()
@@ -42,6 +43,15 @@ def display_dashboard():
         print(f"\n🎯 PERFORMANCE:")
         print(f"   Trades: {pnl_data['total_trades']} | Wins: {pnl_data['winning_trades']} | Losses: {pnl_data['losing_trades']} | Win Rate: {pnl_data['win_rate']:.1f}%")
         print(f"   Total P&L: £{pnl_data['total_pnl']:.2f}")
+        
+        # Show average profit (NEW!)
+        if pnl_data['winning_trades'] > 0:
+            avg_profit = pnl_data['avg_profit']
+            if avg_profit > PROFIT_TARGET_GBP:
+                extra_avg = avg_profit - PROFIT_TARGET_GBP
+                print(f"   Avg Win: £{avg_profit:.2f} (£{extra_avg:.2f} extra via trailing stop! 💎)")
+            else:
+                print(f"   Avg Win: £{avg_profit:.2f}")
     
     # LIVE POSITION STATUS
     print(f"\n💼 LIVE POSITION:")
@@ -69,8 +79,36 @@ def display_dashboard():
         pnl_emoji = "💚" if current_pnl >= 0 else "💔"
         print(f"   P&L: {pnl_emoji} £{current_pnl:+.2f}")
         
-        # Progress to target
-        if 'target_price' in exit_check:
+        # ================================================================
+        # NEW: TRAILING STOP STATUS
+        # ================================================================
+        if exit_check.get('trailing_active'):
+            print(f"\n   🎯 TRAILING STOP ACTIVE!")
+            peak_price = exit_check.get('peak_price', 0)
+            trailing_stop_price = exit_check.get('trailing_stop_price', 0)
+            
+            extra_profit = current_pnl - PROFIT_TARGET_GBP
+            
+            print(f"   ├─ Peak Price: £{peak_price:.2f}")
+            print(f"   ├─ Trailing Stop: £{trailing_stop_price:.2f}")
+            print(f"   ├─ Current Buffer: £{current_price - trailing_stop_price:.2f}")
+            print(f"   └─ Extra Profit: £{extra_profit:.2f} above £{PROFIT_TARGET_GBP:.2f} minimum 💎")
+            
+            # Visual indicator
+            distance_from_stop = ((current_price - trailing_stop_price) / current_price) * 100
+            trail_distance_pct = strategy.trailing_stop_distance_pct * 100
+            
+            if distance_from_stop < trail_distance_pct * 0.3:  # Within 30% of trigger
+                print(f"\n   ⚠️  CLOSE TO STOP! Only {distance_from_stop:.2f}% buffer")
+            else:
+                print(f"\n   ✅ Safe buffer: {distance_from_stop:.2f}% from stop")
+            
+            print(f"   📈 Strategy: Riding the trend, will exit if price drops {trail_distance_pct:.1f}% from peak")
+        
+        # ================================================================
+        # Progress to target (if not yet hit)
+        # ================================================================
+        elif 'target_price' in exit_check:
             target_price = exit_check['target_price']
             target_distance = target_price - current_price
             target_pct = (target_distance / current_price) * 100
@@ -89,10 +127,9 @@ def display_dashboard():
             print(f"   Need: +£{target_distance:.2f} ({target_pct:+.2f}%) to reach £{target_price:.2f}")
             
             if target_pct > 0:
-                # Estimate time based on recent movement
-                print(f"   Target: £{PROFIT_TARGET_GBP:.2f} profit")
+                print(f"   Target: £{PROFIT_TARGET_GBP:.2f} profit (then trailing activates!)")
             else:
-                print(f"   ✅ TARGET HIT! Bot will sell next cycle!")
+                print(f"   ✅ TARGET HIT! Trailing stop will activate next cycle!")
         
         # Stop loss warning
         if 'stop_loss_price' in exit_check:
@@ -100,16 +137,23 @@ def display_dashboard():
             stop_distance = current_price - stop_loss_price
             
             if stop_distance < 0:
-                print(f"\n   ⚠️ STOP LOSS TRIGGERED: £{stop_loss_price:.2f}")
+                print(f"\n   🚨 STOP LOSS TRIGGERED: £{stop_loss_price:.2f}")
             else:
                 stop_pct = (stop_distance / current_price) * 100
-                print(f"   Stop Loss: £{stop_loss_price:.2f} (buffer: +{stop_pct:.1f}%)")
+                if stop_pct < 0.5:  # Less than 0.5% buffer
+                    print(f"   ⚠️  NEAR STOP LOSS: £{stop_loss_price:.2f} (buffer: {stop_pct:.1f}%)")
+                else:
+                    print(f"   🛡️  Stop Loss: £{stop_loss_price:.2f} (buffer: {stop_pct:.1f}%)")
         
         # Status
         status = exit_check['reason']
         if exit_check['should_exit']:
-            print(f"\n   🔔 ACTION: {status}")
-            print(f"   ⚠️  BOT WILL SELL ON NEXT CYCLE!")
+            # Check if it's a trailing stop exit
+            if 'TRAILING STOP' in status:
+                print(f"\n   🎯 TRAILING STOP EXIT: {status}")
+            else:
+                print(f"\n   🔔 EXIT SIGNAL: {status}")
+            print(f"   ⚡ BOT WILL SELL ON NEXT CYCLE!")
         else:
             print(f"\n   📊 Status: {status}")
             
@@ -130,9 +174,16 @@ def display_dashboard():
             if strength >= MIN_CONFIDENCE:
                 print(f"   ✅ Confidence above {MIN_CONFIDENCE*100:.0f}% - Bot should enter soon!")
             else:
-                print(f"   ⏳ Scanning... Need {MIN_CONFIDENCE*100:.0f}%+ confidence")
+                need_pct = (MIN_CONFIDENCE - strength) * 100
+                print(f"   ⏳ Scanning... Need +{need_pct:.0f}% more confidence")
+            
+            # NEW: Show trailing stop info
+            trail_pct = strategy.trailing_stop_distance_pct * 100
+            print(f"\n   💎 Trailing Stop Ready:")
+            print(f"      Distance: {trail_pct:.1f}% below peak")
+            print(f"      Min Profit: £{PROFIT_TARGET_GBP:.2f} (then captures more!)")
     
-    # Recent trades (compact)
+    # Recent trades (compact) - Enhanced to show trailing stop wins
     print(f"\n📋 RECENT TRADES:")
     print("-" * 70)
     trades = logger.get_trade_history(limit=5)
@@ -142,7 +193,13 @@ def display_dashboard():
             time_str = trade.timestamp.strftime('%H:%M:%S')
             if trade.profit_loss is not None:
                 pnl_emoji = "✅" if trade.profit_loss >= 0 else "❌"
-                pnl_str = f"{pnl_emoji} £{trade.profit_loss:+.2f}"
+                
+                # Mark extra profit from trailing stop
+                bonus_marker = ""
+                if trade.profit_loss > (PROFIT_TARGET_GBP * 1.2):  # 20% above target
+                    bonus_marker = " 💎"  # Diamond for big wins
+                
+                pnl_str = f"{pnl_emoji} £{trade.profit_loss:+.2f}{bonus_marker}"
             else:
                 pnl_str = "⏳ Open"
             
@@ -152,14 +209,16 @@ def display_dashboard():
     
     print("\n" + "="*70)
     print("🔄 Refreshing every 30s... Press Ctrl+C to exit")
+    print("💡 Look for 🎯 when trailing stop is active!")
     print("="*70)
     
     logger.close()
 
 def run_live_dashboard():
-    """Run the live dashboard with auto-refresh."""
-    print("\n🚀 Starting Live Dashboard...")
+    """Run the enhanced live dashboard with auto-refresh."""
+    print("\n🚀 Starting Enhanced Live Dashboard...")
     print("📊 Updates every 30 seconds")
+    print("🎯 Shows trailing stop status when active")
     print("⌨️  Press Ctrl+C to exit\n")
     time.sleep(2)
     

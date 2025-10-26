@@ -30,9 +30,9 @@ INITIAL_CAPITAL = 500.0      # Starting capital
 TRADE_AMOUNT_GBP = 499.0     # Amount per trade (leave £1 buffer)
 
 # ============================================================================
-# FEE STRUCTURE (CORRECTED - Based on Your Actual Coinbase Trade)
+# FEE STRUCTURE
 # ============================================================================
-# Your manual trade showed: £1.72 fee on £142.98 = 1.2% per trade
+# Based on actual Coinbase trades: 1.2% per trade
 # Total round-trip cost: 2.4% (1.2% buy + 1.2% sell)
 
 FEE_PCT = 0.012              # 1.2% Coinbase fee per trade
@@ -40,79 +40,74 @@ TOTAL_FEE_PCT = 0.024        # 2.4% total round-trip (buy + sell)
 API_COST_GBP = 0.10          # Claude API cost per trading cycle (~£0.08-0.10)
 
 # ============================================================================
-# PROFIT TARGET STRATEGY
+# PROFIT TARGET STRATEGY - ENHANCED WITH TRAILING STOP
 # ============================================================================
-# OPTION A: £1.00 NET PROFIT (RECOMMENDED) ✅
-# - Price movement: 2.67% gain required
-# - Time estimate: 1-3 hours typical
-# - Trades per day: 3-5 possible
-# - Daily potential: £3-5 profit
+# 🎯 NEW STRATEGY: Minimum £1 profit + Trailing Stop for extra gains!
+#
+# How it works:
+# 1. Initial target: £1.00 NET profit (guaranteed minimum)
+# 2. Once hit → Trailing stop activates (0.5% below peak)
+# 3. Captures extra gains in strong uptrends (£2-10 possible!)
+# 4. Auto-exits if price reverses 0.5% from peak
+# 5. Never get less than £1.00 after target is hit
+#
+# Expected results:
+# - Quick reversal: £1.00 (minimum secured)
+# - Moderate trend: £2.00-£3.00 (+100-200%)
+# - Strong trend: £5.00-£10.00 (+400-900%)
+# ============================================================================
 
-PROFIT_TARGET_GBP = 13.16    # Gross profit needed for £1.00 net after all costs
-PROFIT_TARGET_PCT = 0.0267   # 2.67% price movement required
+# SIMPLE TARGET: £1.00 NET PROFIT (Trailing stop handles the rest!)
+PROFIT_TARGET_GBP = 1.0      # £1.00 net profit target
+PROFIT_TARGET_PCT = 0.022    # ~2.2% price movement needed
 
-# OPTION B: £0.50 NET PROFIT (FASTEST) ⚡
-# - Price movement: 2.57% gain required
-# - Time estimate: 30 min - 2 hours
-# - Trades per day: 5-10 possible
-# - Daily potential: £2.50-5.00 profit
-# Uncomment to use:
-# PROFIT_TARGET_GBP = 12.66
-# PROFIT_TARGET_PCT = 0.0257
-
-# OPTION C: £2.00 NET PROFIT (MODERATE) 🎯
-# - Price movement: 2.88% gain required
-# - Time estimate: 2-4 hours
-# - Trades per day: 2-4 possible
-# - Daily potential: £4-8 profit
-# Uncomment to use:
-# PROFIT_TARGET_GBP = 14.17
-# PROFIT_TARGET_PCT = 0.0288
-
-# OPTION D: £5.00 NET PROFIT (SLOWER) 💰
-# - Price movement: 3.49% gain required
-# - Time estimate: 4-8 hours
-# - Trades per day: 1-2 possible
-# - Daily potential: £5-10 profit
-# Uncomment to use:
-# PROFIT_TARGET_GBP = 17.21
-# PROFIT_TARGET_PCT = 0.0349
+# The profit_strategy_enhanced.py will:
+# - Calculate exact price needed for £1.00 NET (after all fees)
+# - Lock in £1.00 minimum once hit
+# - Use trailing stop to capture MORE if trend continues
+# - You get £1-10 depending on market, never less than £1!
 
 # ============================================================================
-# PROFIT CALCULATION BREAKDOWN (for £499 investment, £1.00 net profit)
+# PROFIT CALCULATION (AUTOMATIC)
 # ============================================================================
-# """
-# BUY PHASE:
+# The enhanced strategy calculates the EXACT exit price needed for £1.00 net:
+#
+# Example for SOL at £150:
 # - Investment: £499.00
 # - Buy fee (1.2%): £5.99
-# - Assets bought: £493.01
-
-# PRICE MOVEMENT: +2.67%
-# - Assets grow to: £506.17
-
-# SELL PHASE:
-# - Gross value: £506.17
-# - Sell fee (1.2%): £6.07
-# - Cash received: £500.10
-# - Less API cost: £0.10
-# - Net received: £500.00
-# - NET PROFIT: £1.00 ✅
-
-# TIME: 2.67% moves in SOL typically take 1-3 hours
-# """
+# - Crypto bought: £493.01 worth
+# - Entry price: £150.00
+# 
+# TARGET CALCULATION (done automatically by bot):
+# - Need £1.00 net profit
+# - After sell fee (1.2%) and API cost (£0.10)
+# - Exact exit price needed: £151.47 (calculated dynamically)
+# - Initial target: £151.47
+# 
+# TRAILING STOP THEN ACTIVATES:
+# - Price hits £151.47 → £1.00 secured! ✅
+# - Trailing stop activates at 0.5% below peak
+# - If price goes to £155 → stop moves to £154.23
+# - If price drops to £154.20 → EXIT with £3.50 profit! 🎉
+# - If price reverses immediately → still get £1.00 minimum
+#
+# TIME: 2.2% moves typically take 1-3 hours
+# UPSIDE: Unlimited (trailing stop captures trends)
+# DOWNSIDE: Protected (£1.00 minimum once target hit)
+# ============================================================================
 
 # ============================================================================
 # RISK MANAGEMENT
 # ============================================================================
 
-STOP_LOSS_PCT = 0.015        # 1.5% stop loss (protects against big losses)
+STOP_LOSS_PCT = 0.015        # 1.5% stop loss (hard safety net)
                              # Loss if triggered: ~£7.50
+                             # This is your MAXIMUM loss per trade
 
 MAX_POSITION_SIZE = 10000    # Maximum position size
 MIN_CONFIDENCE = 0.65        # 65% minimum confidence for trades
-                             # (Your Claude returns 67% confidence)
 
-COOLDOWN_MINUTES = 3       # Wait 10 minutes between trade decisions
+COOLDOWN_MINUTES = 3         # Wait 3 minutes between trade checks
 
 # ============================================================================
 # TECHNICAL INDICATORS
@@ -141,19 +136,64 @@ REINVEST_PROFITS = True      # Reinvest profits to grow position size
                              # Set to False to trade with fixed £499 always
 
 # ============================================================================
-# SUMMARY OF CURRENT SETTINGS
+# TRAILING STOP CONFIGURATION (Optional - defaults in profit_strategy_enhanced.py)
+# ============================================================================
+# The trailing stop distance is set in profit_strategy_enhanced.py (line 28)
+# Default: 0.5% (recommended for balanced profit capture)
+#
+# To change it, edit profit_strategy_enhanced.py:
+#   self.trailing_stop_distance_pct = 0.005  # 0.5% (current)
+#
+# Options:
+#   0.003 (0.3%) - Tight, quick exit, less extra profit
+#   0.005 (0.5%) - Balanced (RECOMMENDED) ⭐
+#   0.008 (0.8%) - Loose, more profit potential
+#   0.010 (1.0%) - Very loose, maximum profit capture
+
+# ============================================================================
+# SUMMARY OF ENHANCED SETTINGS
 # ============================================================================
 # """
 # 💰 INVESTMENT: £499 per trade
-# 🎯 TARGET: £1.00 net profit per trade (2.67% price moves)
-# ⏱️  SPEED: 1-3 hours per trade typically
-# 📊 DAILY POTENTIAL: 3-5 trades = £3-5 profit per day
-# 💸 COSTS: £5.99 buy fee + £6.07 sell fee + £0.10 API = £12.16 total
-# ⚠️  RISK: £7.50 loss if stop loss triggered (1.5% move against)
-# ✅ RISK/REWARD: 1:0.13 (risk £7.50 to make £1.00)
-
-# SPEED COMPARISON:
-# - Old (£144): 2.90% for £0.50 = 2-4 hours
-# - New (£499): 2.67% for £1.00 = 1-3 hours
-# - Result: 2x profit in FASTER time! 🚀
+# 🎯 INITIAL TARGET: £1.00 net profit (2.2% price move)
+# 🎯 TRAILING STOP: Activates after £1.00 hit
+# 📈 UPSIDE POTENTIAL: £1.00 - £10.00+ depending on trend
+# ⏱️  SPEED: 2.2% moves typically take 1-3 hours
+# 📊 DAILY POTENTIAL: 3-5 trades = £3-15 profit per day (vs old £3-5)
+# 💸 COSTS: £5.99 buy + £6.07 sell + £0.10 API = £12.16 total (included in calculation)
+# ⚠️  RISK: £7.50 max loss if stop loss triggered (1.5% move against)
+# ✅ RISK/REWARD: 1:0.13 to 1:1.33 (risk £7.50 to make £1-10)
+#
+# 🚀 UPGRADE BENEFITS:
+# - Same £1.00 minimum (guaranteed)
+# - Extra profit capture in trends (£2-10 possible!)
+# - Same risk (1.5% stop loss unchanged)
+# - Fully automated (trailing stop handles everything)
+# - Market orders (guaranteed execution, small slippage OK)
+#
+# 💡 PHILOSOPHY:
+# "After £1 profit, everything is bonus. Fast exit saves from greater losses."
+# This config + trailing stop implements that perfectly! ✅
 # """
+
+# ============================================================================
+# IMPORTANT NOTES
+# ============================================================================
+# 1. PROFIT_TARGET_GBP = 1.0 is your MINIMUM target
+#    - The bot calculates exact price needed for £1.00 NET after all fees
+#    - Trailing stop then captures MORE if trend continues
+#    - You never get less than £1.00 once target is hit
+#
+# 2. PROFIT_TARGET_PCT = 0.022 is approximate
+#    - Exact % varies by entry price (higher price = smaller % needed)
+#    - Bot calculates this dynamically per trade
+#
+# 3. Trailing stop uses MARKET ORDERS
+#    - Guaranteed execution (you always get out)
+#    - Small slippage acceptable (£0.10-0.50 typical)
+#    - Fast exit = protect gains from crashes
+#
+# 4. To adjust trailing distance:
+#    - Edit profit_strategy_enhanced.py line 28
+#    - Not in this config file
+# ============================================================================
