@@ -112,7 +112,7 @@ MAX_POSITION_SIZE = 10000    # Maximum position size
 MIN_CONFIDENCE = 0.65        # 65% minimum confidence for trades
                              # (Your Claude returns 67% confidence)
 
-COOLDOWN_MINUTES = 3         # Wait 3 minutes between trade decisions
+COOLDOWN_MINUTES = 3       # Wait 10 minutes between trade decisions
 
 # ============================================================================
 # TECHNICAL INDICATORS

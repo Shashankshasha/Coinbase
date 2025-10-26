@@ -8,6 +8,7 @@ from config import (
     INITIAL_CAPITAL,
     REINVEST_PROFITS
 )
+import time
 
 class ProfitStrategy:
     """
@@ -47,13 +48,6 @@ class ProfitStrategy:
         """
         Fetch actual entry details from Coinbase order history.
         Finds the BUY order that created this position.
-        
-        Args:
-            product_id: Trading pair (e.g., 'SOL-GBP')
-            crypto_amount: Amount of crypto held
-            
-        Returns:
-            Dict with entry details or None if not found
         """
         try:
             from execution.order_manager import OrderManager
@@ -61,7 +55,6 @@ class ProfitStrategy:
             
             print(f"   🔍 Searching Coinbase order history...")
             
-            # Check if OrderManager has the method
             if not hasattr(order_manager, 'get_recent_orders'):
                 print(f"   ⚠️ Order history not implemented in OrderManager")
                 return None
@@ -95,33 +88,16 @@ class ProfitStrategy:
     def calculate_profit_target(self, entry_price: float, trade_amount: float) -> dict:
         """
         Calculate exact price target to achieve configured profit.
-        
-        Args:
-            entry_price: Price bought at
-            trade_amount: Amount invested in GBP
-            
-        Returns:
-            Target prices and expected profit
         """
-        # Calculate crypto amount bought
         entry_fee = trade_amount * FEE_PCT
         crypto_bought = (trade_amount - entry_fee) / entry_price
         
-        # Calculate target exit price for configured profit
-        # Need: exit_revenue - entry_cost = PROFIT_TARGET_GBP
         entry_cost = trade_amount
         target_revenue = entry_cost + PROFIT_TARGET_GBP
-        
-        # Account for exit fee: revenue = (crypto_sold * exit_price) - exit_fee
-        # exit_fee = (crypto_sold * exit_price) * FEE_PCT
-        # revenue = (crypto * price) * (1 - FEE_PCT)
-        # target_revenue = (crypto * exit_price) * (1 - FEE_PCT)
-        # exit_price = target_revenue / (crypto * (1 - FEE_PCT))
         
         target_exit_price = target_revenue / (crypto_bought * (1 - FEE_PCT))
         price_change_needed = ((target_exit_price - entry_price) / entry_price) * 100
         
-        # Calculate stop loss price
         stop_loss_price = entry_price * (1 - STOP_LOSS_PCT)
         
         return {
@@ -137,53 +113,57 @@ class ProfitStrategy:
     def check_exit_conditions(self, product_id: str) -> dict:
         """
         Check if current position should be closed.
-        Now checks BOTH database AND actual Coinbase balance with auto-recovery!
-        FIXED: Uses break-even estimate instead of conservative 2% markup
-        
-        Returns:
-            {
-                'should_exit': bool,
-                'reason': str,
-                'action': 'SELL' or 'HOLD',
-                'expected_profit': float,
-                'has_position': bool
-            }
+        Includes retry logic for connection issues.
         """
-        # Get current market data
-        snapshot = self.market.get_full_market_snapshot(product_id)
-        current_price = snapshot['current_price']
+        snapshot = None
+        for attempt in range(3):
+            try:
+                snapshot = self.market.get_full_market_snapshot(product_id)
+                if snapshot and 'current_price' in snapshot:
+                    break
+            except Exception as e:
+                print(f"⚠️ Error fetching market snapshot (attempt {attempt+1}/3): {e}")
+                time.sleep(3)
+        else:
+            print(f"❌ Failed to fetch market snapshot after 3 attempts — skipping exit check.")
+            return {
+                'should_exit': False,
+                'reason': 'Market data unavailable after retries',
+                'action': 'HOLD',
+                'has_position': False
+            }
+
+        # ✅ SAFETY PATCH: Handle NoneType or missing keys
+        if not snapshot or 'current_price' not in snapshot:
+            print(f"⚠️ No market snapshot available for {product_id} — skipping exit check.")
+            return {
+                'should_exit': False,
+                'reason': 'No market data available',
+                'action': 'HOLD',
+                'has_position': False
+            }
         
-        # Extract crypto symbol (SOL from SOL-GBP)
+        current_price = snapshot['current_price']
         crypto_symbol = product_id.split('-')[0]
         actual_balance = snapshot['balances'].get(crypto_symbol, 0)
         
-        # Check if we have actual crypto on Coinbase
-        if actual_balance > 0.001:  # Have real position on exchange
-            # Try to get database position first
+        if actual_balance > 0.001:
             position = self.db.get_open_position(product_id)
             
             if position:
-                # Position exists in DB - use recorded entry price
                 entry_price = position.price
                 crypto_amount = position.crypto_amount
                 entry_cost = position.amount_gbp
                 print(f"   ✅ Using DB entry: £{entry_cost:.2f} @ £{entry_price:.2f}")
             else:
-                # Position exists on Coinbase but NOT in DB
-                # Try to recover from Coinbase order history
                 print(f"⚠️ Found {actual_balance:.6f} {crypto_symbol} on Coinbase but no DB record!")
-                
-                # Attempt automatic recovery from order history
                 historical_entry = self.get_entry_from_coinbase_history(product_id, actual_balance)
                 
                 if historical_entry and historical_entry.get('cost', 0) > 0:
-                    # Successfully recovered real entry from Coinbase
                     entry_price = historical_entry['price']
                     entry_cost = historical_entry['cost']
                     crypto_amount = actual_balance
                     print(f"   ✅ Recovered entry from Coinbase: £{entry_cost:.2f} @ £{entry_price:.2f}")
-                    
-                    # Record to database for future reference
                     try:
                         fee = entry_cost * FEE_PCT
                         self.db.record_trade(
@@ -197,18 +177,11 @@ class ProfitStrategy:
                         print(f"   💾 Saved to database for monitoring")
                     except Exception as e:
                         print(f"   ⚠️ Could not save to DB: {e}")
-                        
                 else:
-                    # Could not find order history - use BREAK-EVEN estimate
-                    # CRITICAL FIX: Use current price as entry (not 2% higher!)
-                    # This prevents false stop losses
                     print(f"   ⚠️ Could not recover entry - using BREAK-EVEN estimate")
                     print(f"   💡 Bot assumes current price as entry and waits for profit")
                     
                     current_value = actual_balance * current_price
-                    
-                    # Break-even approach: assume we bought at current price
-                    # This ensures we only sell at a profit, never at a loss
                     entry_price = current_price
                     entry_cost = current_value
                     crypto_amount = actual_balance
@@ -216,7 +189,6 @@ class ProfitStrategy:
                     print(f"   📊 Break-even estimate: £{entry_cost:.2f} @ £{entry_price:.2f}")
                     print(f"   ⚠️ Any price increase will trigger profit target")
                     
-                    # Record break-even estimate to database
                     try:
                         fee = entry_cost * FEE_PCT
                         self.db.record_trade(
@@ -231,7 +203,6 @@ class ProfitStrategy:
                     except Exception as e:
                         print(f"   ⚠️ Could not save to DB: {e}")
             
-            # Calculate current P&L
             current_value = crypto_amount * current_price
             exit_fee = current_value * FEE_PCT
             exit_revenue = current_value - exit_fee
@@ -239,10 +210,8 @@ class ProfitStrategy:
             current_pnl = exit_revenue - entry_cost
             current_pnl_pct = (current_pnl / entry_cost) * 100 if entry_cost > 0 else 0
             
-            # Calculate targets based on entry
             targets = self.calculate_profit_target(entry_price, entry_cost)
             
-            # Decision logic
             if current_price >= targets['target_exit_price']:
                 return {
                     'should_exit': True,
@@ -285,7 +254,6 @@ class ProfitStrategy:
                     'crypto_amount': crypto_amount
                 }
         
-        # No position anywhere
         return {
             'should_exit': False,
             'reason': 'No open position',
@@ -297,10 +265,9 @@ class ProfitStrategy:
         """
         Get today's trading statistics.
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime
         
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
         all_trades = self.db.get_all_trades()
         today_trades = [t for t in all_trades if t.timestamp >= today_start]
         

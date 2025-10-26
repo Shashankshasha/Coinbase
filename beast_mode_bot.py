@@ -202,12 +202,12 @@ If executing, use execute_trade_decision with:
         self.agent.reset()
         time.sleep(2)
     
-    def run_beast_mode(self, check_interval_seconds: int = 300):
+    def run_beast_mode(self, check_interval_seconds: int = 180):
         """
         RUN CONTINUOUSLY - NO LIMITS - FULL AUTOMATION
         
         Args:
-            check_interval_seconds: How often to check (default: 300 = 5 minutes)
+            check_interval_seconds: How often to check (default: 180 = 3 minutes)
         """
         print("\n" + "="*70)
         print("🔥🔥🔥 BEAST MODE ACTIVATED 🔥🔥🔥")
@@ -345,4 +345,4 @@ if __name__ == "__main__":
     from datetime import timedelta
     
     bot = BeastModeBot()
-    bot.run_beast_mode(check_interval_seconds=300)  # Check every 3 minutes
+    bot.run_beast_mode(check_interval_seconds=180)  # Check every 10 minutes
