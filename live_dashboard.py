@@ -1,8 +1,8 @@
 from tracking.trade_logger import TradeLogger
-from profit_strategy_enhanced import ProfitStrategyEnhanced  # UPDATED!
+from profit_strategy_enhanced import ProfitStrategyEnhanced
 from data_layer.market_data import MarketData
 from datetime import datetime
-from config import TRADING_PAIR, PROFIT_TARGET_GBP, MIN_CONFIDENCE
+from config import TRADING_PAIR, MIN_CONFIDENCE
 import time
 import os
 
@@ -12,13 +12,16 @@ def clear_screen():
 
 def display_dashboard():
     """
-    ENHANCED LIVE DASHBOARD - Shows trailing stop status
-    Auto-refreshing P&L monitor with trailing stop indicators
+    ULTRA-ENHANCED LIVE DASHBOARD
+    - Shows progressive profit tier status
+    - Displays trailing stop activity
+    - Auto-refreshing P&L monitor
+    - Current target based on capital
     Updates every 30 seconds with real-time data
     Press Ctrl+C to exit
     """
     logger = TradeLogger("trading_bot.db")
-    strategy = ProfitStrategyEnhanced("trading_bot.db")  # UPDATED!
+    strategy = ProfitStrategyEnhanced("trading_bot.db")
     market = MarketData()
     
     clear_screen()
@@ -27,8 +30,29 @@ def display_dashboard():
     print(f"📊 LIVE TRADING DASHBOARD - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
     
-    # Get daily stats
+    # Get daily stats (now includes tier info!)
     daily = strategy.get_daily_stats()
+    
+    # ================================================================
+    # NEW: PROGRESSIVE TIER DISPLAY
+    # ================================================================
+    current_tier = daily.get('current_tier', 'Unknown')
+    current_target = daily.get('current_profit_target', 2.0)
+    
+    print(f"\n🎯 PROFIT TIER: {current_tier.upper()}")
+    print(f"   Current Target: £{current_target:.2f} per trade")
+    
+    # Show tier progression
+    if current_tier == "Beginner":
+        print(f"   Next Tier: Intermediate (£3 target) at £800 capital")
+    elif current_tier == "Intermediate":
+        print(f"   Next Tier: Advanced (£5 target) at £1,500 capital")
+    elif current_tier == "Advanced":
+        print(f"   Next Tier: Professional (£10 target) at £3,000 capital")
+    elif current_tier == "Professional":
+        print(f"   Next Tier: Expert (scaling) at £10,000 capital")
+    else:
+        print(f"   🏆 Maximum tier reached! Scaling at 0.2% of capital")
     
     print(f"\n💰 CAPITAL:")
     print(f"   Start: £{daily['initial_capital']:.2f} → Current: £{daily['current_capital']:.2f}")
@@ -37,6 +61,21 @@ def display_dashboard():
     return_emoji = "📈" if return_amount >= 0 else "📉"
     print(f"   Return: {return_emoji} £{return_amount:.2f} ({return_pct:+.2f}%)")
     
+    # Show capital needed for next tier (NEW!)
+    capital = daily['current_capital']
+    if capital < 800:
+        needed = 800 - capital
+        print(f"   💎 £{needed:.2f} until tier upgrade!")
+    elif capital < 1500:
+        needed = 1500 - capital
+        print(f"   💎 £{needed:.2f} until tier upgrade!")
+    elif capital < 3000:
+        needed = 3000 - capital
+        print(f"   💎 £{needed:.2f} until tier upgrade!")
+    elif capital < 10000:
+        needed = 10000 - capital
+        print(f"   💎 £{needed:.2f} until Expert tier!")
+    
     # Performance metrics
     pnl_data = logger.db.get_total_pnl()
     if pnl_data['total_trades'] > 0:
@@ -44,11 +83,11 @@ def display_dashboard():
         print(f"   Trades: {pnl_data['total_trades']} | Wins: {pnl_data['winning_trades']} | Losses: {pnl_data['losing_trades']} | Win Rate: {pnl_data['win_rate']:.1f}%")
         print(f"   Total P&L: £{pnl_data['total_pnl']:.2f}")
         
-        # Show average profit (NEW!)
+        # Show average profit with trailing stop bonus (UPDATED!)
         if pnl_data['winning_trades'] > 0:
             avg_profit = pnl_data['avg_profit']
-            if avg_profit > PROFIT_TARGET_GBP:
-                extra_avg = avg_profit - PROFIT_TARGET_GBP
+            if avg_profit > current_target:  # Compare to current target, not fixed
+                extra_avg = avg_profit - current_target
                 print(f"   Avg Win: £{avg_profit:.2f} (£{extra_avg:.2f} extra via trailing stop! 💎)")
             else:
                 print(f"   Avg Win: £{avg_profit:.2f}")
@@ -66,13 +105,14 @@ def display_dashboard():
         
         crypto_symbol = TRADING_PAIR.split('-')[0]
         crypto_amount = exit_check.get('crypto_amount', 0)
+        position_tier = exit_check.get('profit_tier', current_tier)  # NEW!
         
         # Price info
         price_diff = current_price - entry_price
         price_diff_pct = (price_diff / entry_price) * 100 if entry_price > 0 else 0
         direction = "🟢 UP" if price_diff >= 0 else "🔴 DOWN"
         
-        print(f"   {crypto_amount:.6f} {crypto_symbol}")
+        print(f"   {crypto_amount:.6f} {crypto_symbol} | Tier: {position_tier}")
         print(f"   Entry: £{entry_price:.2f} → Now: £{current_price:.2f} ({direction} {price_diff_pct:+.2f}%)")
         
         # P&L bar
@@ -80,19 +120,19 @@ def display_dashboard():
         print(f"   P&L: {pnl_emoji} £{current_pnl:+.2f}")
         
         # ================================================================
-        # NEW: TRAILING STOP STATUS
+        # TRAILING STOP STATUS
         # ================================================================
         if exit_check.get('trailing_active'):
             print(f"\n   🎯 TRAILING STOP ACTIVE!")
             peak_price = exit_check.get('peak_price', 0)
             trailing_stop_price = exit_check.get('trailing_stop_price', 0)
             
-            extra_profit = current_pnl - PROFIT_TARGET_GBP
+            extra_profit = current_pnl - current_target  # Use current target!
             
             print(f"   ├─ Peak Price: £{peak_price:.2f}")
             print(f"   ├─ Trailing Stop: £{trailing_stop_price:.2f}")
             print(f"   ├─ Current Buffer: £{current_price - trailing_stop_price:.2f}")
-            print(f"   └─ Extra Profit: £{extra_profit:.2f} above £{PROFIT_TARGET_GBP:.2f} minimum 💎")
+            print(f"   └─ Extra Profit: £{extra_profit:.2f} above £{current_target:.2f} minimum 💎")
             
             # Visual indicator
             distance_from_stop = ((current_price - trailing_stop_price) / current_price) * 100
@@ -127,7 +167,7 @@ def display_dashboard():
             print(f"   Need: +£{target_distance:.2f} ({target_pct:+.2f}%) to reach £{target_price:.2f}")
             
             if target_pct > 0:
-                print(f"   Target: £{PROFIT_TARGET_GBP:.2f} profit (then trailing activates!)")
+                print(f"   Target: £{current_target:.2f} profit (then trailing activates!)")
             else:
                 print(f"   ✅ TARGET HIT! Trailing stop will activate next cycle!")
         
@@ -177,11 +217,11 @@ def display_dashboard():
                 need_pct = (MIN_CONFIDENCE - strength) * 100
                 print(f"   ⏳ Scanning... Need +{need_pct:.0f}% more confidence")
             
-            # NEW: Show trailing stop info
+            # Show current tier trailing stop info (UPDATED!)
             trail_pct = strategy.trailing_stop_distance_pct * 100
-            print(f"\n   💎 Trailing Stop Ready:")
+            print(f"\n   💎 Trailing Stop Ready ({current_tier} Tier):")
             print(f"      Distance: {trail_pct:.1f}% below peak")
-            print(f"      Min Profit: £{PROFIT_TARGET_GBP:.2f} (then captures more!)")
+            print(f"      Min Profit: £{current_target:.2f} (then captures more!)")
     
     # Recent trades (compact) - Enhanced to show trailing stop wins
     print(f"\n📋 RECENT TRADES:")
@@ -194,10 +234,12 @@ def display_dashboard():
             if trade.profit_loss is not None:
                 pnl_emoji = "✅" if trade.profit_loss >= 0 else "❌"
                 
-                # Mark extra profit from trailing stop
+                # Mark extra profit from trailing stop (use dynamic target)
                 bonus_marker = ""
-                if trade.profit_loss > (PROFIT_TARGET_GBP * 1.2):  # 20% above target
+                if trade.profit_loss > (current_target * 1.5):  # 50% above current target
                     bonus_marker = " 💎"  # Diamond for big wins
+                elif trade.profit_loss > (current_target * 2):  # 2x target
+                    bonus_marker = " 💎💎"  # Double diamond for huge wins!
                 
                 pnl_str = f"{pnl_emoji} £{trade.profit_loss:+.2f}{bonus_marker}"
             else:
@@ -210,15 +252,17 @@ def display_dashboard():
     print("\n" + "="*70)
     print("🔄 Refreshing every 30s... Press Ctrl+C to exit")
     print("💡 Look for 🎯 when trailing stop is active!")
+    print(f"🎖️  Current Tier: {current_tier} (£{current_target:.2f} target)")
     print("="*70)
     
     logger.close()
 
 def run_live_dashboard():
-    """Run the enhanced live dashboard with auto-refresh."""
-    print("\n🚀 Starting Enhanced Live Dashboard...")
+    """Run the ultra-enhanced live dashboard with auto-refresh."""
+    print("\n🚀 Starting Ultra-Enhanced Live Dashboard...")
     print("📊 Updates every 30 seconds")
     print("🎯 Shows trailing stop status when active")
+    print("🎖️  Displays progressive profit tier")
     print("⌨️  Press Ctrl+C to exit\n")
     time.sleep(2)
     

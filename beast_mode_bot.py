@@ -10,6 +10,7 @@ from config import (
     INITIAL_CAPITAL,
     PROFIT_TARGET_GBP
 )
+
 from datetime import datetime, timedelta
 import time
 
