@@ -1,18 +1,36 @@
 from coinbase.rest import RESTClient
+from coinbase import jwt_generator
 from config import COINBASE_API_KEY, COINBASE_API_SECRET
 import json
 
 class CoinbaseClient:
     """
     Wrapper for Coinbase Advanced Trade API.
-    Handles authentication and API calls.
+    FIXED for Cloud API Keys (JWT authentication)
     """
     
     def __init__(self):
-        self.client = RESTClient(
-            api_key=COINBASE_API_KEY,
-            api_secret=COINBASE_API_SECRET
-        )
+        # CRITICAL FIX: Handle newline encoding in private key
+        api_secret = COINBASE_API_SECRET
+        
+        # Convert literal \n to actual newlines if needed
+        if api_secret and '\\n' in api_secret:
+            api_secret = api_secret.replace('\\n', '\n')
+        
+        # For Cloud API keys, we need to initialize differently
+        # The SDK handles JWT generation internally when given proper credentials
+        try:
+            self.client = RESTClient(
+                api_key=COINBASE_API_KEY,
+                api_secret=api_secret
+            )
+        except Exception as e:
+            print(f"❌ Error initializing Coinbase client: {e}")
+            print("Make sure you have:")
+            print("  1. Correct Cloud API key format (organizations/...)")
+            print("  2. Valid EC private key")
+            print("  3. Latest coinbase SDK: pip install --upgrade coinbase-advanced-py")
+            raise
     
     def get_current_price(self, product_id: str = "SOL-GBP") -> dict:
         """
@@ -50,12 +68,29 @@ class CoinbaseClient:
             list: List of candles with [timestamp, low, high, open, close, volume]
         """
         try:
+            import time
+            
+            # Calculate start and end times based on limit
+            granularity_seconds = {
+                "ONE_MINUTE": 60,
+                "FIVE_MINUTE": 300,
+                "FIFTEEN_MINUTE": 900,
+                "THIRTY_MINUTE": 1800,
+                "ONE_HOUR": 3600,
+                "TWO_HOUR": 7200,
+                "SIX_HOUR": 21600,
+                "ONE_DAY": 86400,
+            }
+            
+            seconds = granularity_seconds.get(granularity, 900)
+            end_time = int(time.time())
+            start_time = end_time - (seconds * limit)
+            
             response = self.client.get_candles(
                 product_id=product_id,
-                start=None,
-                end=None,
-                granularity=granularity,
-                limit=limit
+                start=str(start_time),
+                end=str(end_time),
+                granularity=granularity
             )
             
             # The response is an object, not a dict - access candles attribute directly

@@ -5,7 +5,7 @@ import psutil
 import os
 
 # ✅ Path to your bot file
-BOT_PATH = "/Users/shashanksingh/ai/first_ai_agent/beast_mode_bot_enhanced.py"
+BOT_PATH = "/Users/shashanksingh/ai/first_ai_agent/beast_mode_bot.py"
 
 # ✅ Trading window
 START_HOUR = 9      # 9 AM UK time

@@ -16,6 +16,15 @@ COINBASE_API_KEY = os.getenv("COINBASE_API_KEY")
 COINBASE_API_SECRET = os.getenv("COINBASE_API_SECRET")
 
 # ============================================================================
+# CRITICAL FIX: Handle newline encoding in Cloud API private key
+# ============================================================================
+# Cloud API keys use EC private keys with newlines
+# .env files store these as literal \n characters
+# This converts them to actual newlines for the SDK
+if COINBASE_API_SECRET and '\\n' in COINBASE_API_SECRET:
+    COINBASE_API_SECRET = COINBASE_API_SECRET.replace('\\n', '\n')
+
+# ============================================================================
 # TRADING SETTINGS
 # ============================================================================
 
