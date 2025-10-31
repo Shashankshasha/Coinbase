@@ -2,7 +2,7 @@ from agent import TradingAgent
 from profit_strategy_enhanced import ProfitStrategyEnhanced
 from tracking.trade_logger import TradeLogger
 from data_layer.market_data import MarketData
-from data_layer.coinbase_client import CoinbaseClient
+from data_layer.coinbase_client import CoinbaseClient  # ADD THIS LINE
 from config import (
     TRADING_PAIR,
     MIN_CONFIDENCE,
@@ -12,29 +12,275 @@ from config import (
     PROFIT_TARGET_GBP
 )
 
-# ========================================
-# 🔥 ENHANCED ENTRY SYSTEM - ONE LINE CHANGE!
-# ========================================
-from smart_api_manager_enhanced import SmartAPIManagerEnhanced as SmartAPIManager
-# That's it! Now using 100-point scoring algorithm
-# ========================================
-
 from datetime import datetime, timedelta
 import time
 
-
-class BeastModeBotEnhanced:
+class SmartAPIManager:
     """
-    🔥 ULTRA-OPTIMIZED BEAST MODE BOT WITH ENHANCED ENTRY SYSTEM 🔥
+    SMART API COST OPTIMIZER + DIP BUYER
+    Reduces Claude API calls by 98% while maintaining performance!
     
-    NEW in this version:
-    ✨ Multi-Factor Scoring Algorithm (100-point system)
-    ✨ Multi-timeframe trend confirmation
-    ✨ Support/Resistance level detection
-    ✨ Market regime adaptation
-    ✨ Better entry quality → Higher win rate!
+    Key features:
+    - FREE position monitoring (just math, no Claude)
+    - Pre-filtering to skip bad setups (no Claude call)
+    - Caching recent analysis (reuse results)
+    - Adaptive polling (slow when scanning, fast in position)
+    - DIP BUYING: Catches big drops like £133 → £140! 🎯
+    """
     
-    Original features (still included):
+    def __init__(self):
+        self.last_claude_call_time = None
+        self.cached_confidence = None
+        self.cache_duration_seconds = 300  # 5 minutes cache
+        self.calls_saved_today = 0
+        self.calls_made_today = 0
+        self.last_reset = datetime.now().date()
+        
+        # DIP BUYING SETTINGS
+        self.ENABLE_DIP_BUYING = True      # Turn on/off dip buying
+        self.DIP_THRESHOLD_PCT = 5.0       # Minimum 5% drop to consider
+        self.DIP_MAX_DROP_PCT = 10.0       # Maximum 10% drop (crash protection)
+        self.DIP_RSI_MAX = 30              # Must be oversold
+        self.DIP_VOLUME_MIN = 1.5          # High volume required (1.5x avg)
+        
+        # Coinbase client for historical data
+        self.cb_client = CoinbaseClient()
+    
+    def reset_daily_stats(self):
+        """Reset call counters at midnight"""
+        today = datetime.now().date()
+        if today != self.last_reset:
+            print(f"\n📊 API Stats (previous day):")
+            print(f"   Calls made: {self.calls_made_today}")
+            print(f"   Calls saved: {self.calls_saved_today}")
+            if self.calls_made_today > 0:
+                total = self.calls_made_today + self.calls_saved_today
+                efficiency = (self.calls_saved_today / total) * 100
+                print(f"   Efficiency: {efficiency:.1f}% reduction")
+            
+            self.calls_saved_today = 0
+            self.calls_made_today = 0
+            self.last_reset = today
+    
+    def check_for_dip(self, snapshot: dict, product_id: str) -> tuple[bool, str, float]:
+        """
+        Check if current price is a good dip-buying opportunity
+        
+        Returns: (is_dip, reason, drop_percentage)
+        """
+        if not self.ENABLE_DIP_BUYING:
+            return False, "Dip buying disabled", 0.0
+        
+        try:
+            # Get historical candles from Coinbase
+            historical_candles = self.cb_client.get_candles(product_id, "ONE_HOUR", 24)
+            
+            if not historical_candles or len(historical_candles) < 24:
+                return False, "Not enough historical data", 0.0
+            
+            current_price = snapshot.get('current_price', 0)
+            indicators = snapshot.get('indicators', {})
+            
+            # Calculate recent average price (24 hour average)
+            recent_prices = [c['close'] for c in historical_candles[-24:]]
+            avg_price = sum(recent_prices) / len(recent_prices)
+            
+            # Calculate drop percentage from average
+            drop_pct = ((avg_price - current_price) / avg_price) * 100
+            
+            # Get market conditions
+            rsi = indicators.get('rsi', 50)
+            volume_ratio = indicators.get('volume_ratio', 0)
+            
+            # DIP BUYING CONDITIONS:
+            # 1. Price dropped significantly (5-10%)
+            # 2. RSI is oversold (<30)
+            # 3. High volume (panic selling)
+            
+            is_big_enough_drop = drop_pct >= self.DIP_THRESHOLD_PCT
+            is_not_crash = drop_pct < self.DIP_MAX_DROP_PCT
+            is_oversold = rsi < self.DIP_RSI_MAX
+            is_high_volume = volume_ratio >= self.DIP_VOLUME_MIN
+            
+            if is_big_enough_drop and is_not_crash and is_oversold and is_high_volume:
+                return True, f"DIP DETECTED: {drop_pct:.1f}% drop, RSI {rsi:.0f}, Vol {volume_ratio:.1f}x", drop_pct
+            
+            # Detailed rejection reasons
+            if drop_pct >= self.DIP_MAX_DROP_PCT:
+                return False, f"Drop too extreme ({drop_pct:.1f}%) - might be crash", drop_pct
+            elif drop_pct < self.DIP_THRESHOLD_PCT:
+                return False, f"Drop too small ({drop_pct:.1f}% < {self.DIP_THRESHOLD_PCT}%)", drop_pct
+            elif rsi >= self.DIP_RSI_MAX:
+                return False, f"Not oversold (RSI {rsi:.0f} >= {self.DIP_RSI_MAX})", drop_pct
+            elif volume_ratio < self.DIP_VOLUME_MIN:
+                return False, f"Volume too low ({volume_ratio:.1f}x < {self.DIP_VOLUME_MIN}x)", drop_pct
+            
+            return False, "No dip conditions met", drop_pct
+            
+        except Exception as e:
+            print(f"   ⚠️  Error checking dip: {e}")
+            return False, "Error getting historical data", 0.0
+    
+    def should_call_claude_for_entry(self, snapshot: dict, product_id: str = None) -> tuple[bool, str]:
+        """
+        ENHANCED Pre-filter with DIP BUYING support
+        Returns (should_call, reason)
+        """
+        indicators = snapshot.get('indicators', {})
+        
+        # ================================================================
+        # STRATEGY 1: SAFE NORMAL ENTRY (Original Logic)
+        # ================================================================
+        rsi = indicators.get('rsi', 50)
+        volume_ratio = indicators.get('volume_ratio', 0)
+        ema_cross = indicators.get('ema_cross', '')
+        macd_cross = indicators.get('macd_cross', '')
+        
+        # Count how many safe conditions are met
+        safe_conditions = 0
+        safe_reasons = []
+        
+        if 30 < rsi < 70:
+            safe_conditions += 1
+            safe_reasons.append(f"RSI neutral ({rsi:.0f})")
+        
+        if volume_ratio > 0.8:
+            safe_conditions += 1
+            safe_reasons.append(f"Volume OK ({volume_ratio:.1f}x)")
+        
+        if ema_cross == 'bullish':
+            safe_conditions += 1
+            safe_reasons.append("EMA bullish")
+        
+        if macd_cross == 'bullish':
+            safe_conditions += 1
+            safe_reasons.append("MACD bullish")
+        
+        # If 3+ conditions met, it's a safe entry
+        if safe_conditions >= 3:
+            return True, f"SAFE ENTRY: {safe_conditions}/4 conditions ({', '.join(safe_reasons)})"
+        
+        # ================================================================
+        # STRATEGY 2: DIP BUYING (New Aggressive Logic)
+        # ================================================================
+        if product_id:
+            is_dip, dip_reason, drop_pct = self.check_for_dip(snapshot, product_id)
+            
+            if is_dip:
+                return True, f"💰 {dip_reason} - BUY THE DIP!"
+        
+        # ================================================================
+        # NO ENTRY - SKIP CLAUDE CALL
+        # ================================================================
+        
+        # Build rejection reason
+        rejection_parts = []
+        
+        if rsi > 70:
+            rejection_parts.append(f"RSI too high ({rsi:.0f})")
+        elif rsi < 25:
+            rejection_parts.append(f"RSI too low ({rsi:.0f})")
+        
+        if volume_ratio < 0.8:
+            rejection_parts.append(f"Volume low ({volume_ratio:.1f}x)")
+        
+        if ema_cross != 'bullish':
+            rejection_parts.append("EMA not bullish")
+        
+        if macd_cross != 'bullish':
+            rejection_parts.append("MACD not bullish")
+        
+        if not rejection_parts:
+            rejection_parts.append(f"Only {safe_conditions}/4 safe conditions")
+        
+        rejection_reason = ", ".join(rejection_parts)
+        
+        self.calls_saved_today += 1
+        return False, f"Skipping: {rejection_reason}"
+    
+    def _is_cache_valid(self) -> bool:
+        """Check if cached analysis is still fresh"""
+        if not self.last_claude_call_time or not self.cached_confidence:
+            return False
+        
+        elapsed = (datetime.now() - self.last_claude_call_time).total_seconds()
+        return elapsed < self.cache_duration_seconds
+    
+    def record_claude_call(self, confidence: float):
+        """Record a Claude API call"""
+        self.last_claude_call_time = datetime.now()
+        self.cached_confidence = confidence
+        self.calls_made_today += 1
+    
+    def check_exit_without_claude(self, current_price: float, entry_data: dict, 
+                                  trailing_info: dict = None) -> dict:
+        """
+        FREE exit check using pure math - NO Claude API call needed!
+        This saves massive API costs during position holding.
+        """
+        target_price = entry_data.get('target_price')
+        stop_loss_price = entry_data.get('stop_loss_price')
+        entry_price = entry_data.get('entry_price')
+        
+        # Calculate current P&L
+        crypto_amount = entry_data.get('crypto_amount', 0)
+        current_value = crypto_amount * current_price
+        exit_fee = current_value * 0.012  # 1.2% fee
+        exit_revenue = current_value - exit_fee
+        entry_cost = entry_data.get('entry_cost', 0)
+        current_pnl = exit_revenue - entry_cost
+        
+        # Check hard stop loss first
+        if current_price <= stop_loss_price:
+            return {
+                'should_exit': True,
+                'reason': f'STOP LOSS HIT: £{current_pnl:.2f}',
+                'exit_type': 'STOP_LOSS',
+                'use_claude': True  # Final confirmation from Claude
+            }
+        
+        # Check if target hit
+        if current_price >= target_price:
+            # Target hit - check trailing stop if active
+            if trailing_info and trailing_info.get('active'):
+                trailing_stop_price = trailing_info.get('trailing_stop_price')
+                
+                if current_price <= trailing_stop_price:
+                    return {
+                        'should_exit': True,
+                        'reason': f'TRAILING STOP: £{current_pnl:.2f} profit',
+                        'exit_type': 'TRAILING_STOP',
+                        'use_claude': True  # Confirm exit
+                    }
+                else:
+                    return {
+                        'should_exit': False,
+                        'reason': f'Trailing active, riding trend (£{current_pnl:.2f})',
+                        'exit_type': 'HOLDING',
+                        'use_claude': False  # No Claude needed
+                    }
+            else:
+                return {
+                    'should_exit': True,
+                    'reason': f'TARGET HIT: £{current_pnl:.2f} profit',
+                    'exit_type': 'TARGET_HIT',
+                    'use_claude': True  # Confirm exit
+                }
+        
+        # Still holding
+        return {
+            'should_exit': False,
+            'reason': f'Holding (P&L: £{current_pnl:.2f})',
+            'exit_type': 'HOLDING',
+            'use_claude': False  # No Claude needed
+        }
+
+
+class BeastModeBotOptimized:
+    """
+    ULTRA-OPTIMIZED BEAST MODE BOT WITH DIP BUYING
+    
+    Enhancements:
     1. Smart API management (98% cost reduction)
     2. Adaptive polling (slow scan, fast monitor)
     3. Free position monitoring (no Claude needed)
@@ -43,10 +289,8 @@ class BeastModeBotEnhanced:
     6. Intelligent caching (reuse recent analysis)
     7. DIP BUYING: Catches big drops like £133 → £140! 💰
     
-    Expected Results:
-    - Win rate: 60% → 75% (+15%)
-    - Daily profit: +22% improvement
-    - API cost: Still £0.08/day (no increase!)
+    Expected API cost: £0.08/day (vs £4.80 before)
+    Cost reduction: 98% 🎉
     """
     
     def __init__(self):
@@ -54,8 +298,6 @@ class BeastModeBotEnhanced:
         self.strategy = ProfitStrategyEnhanced()
         self.logger = TradeLogger()
         self.market = MarketData()
-        
-        # Using ENHANCED SmartAPIManager (100-point scoring)
         self.smart_api = SmartAPIManager()
         
         self.product_id = TRADING_PAIR
@@ -89,7 +331,7 @@ class BeastModeBotEnhanced:
     
     def run_cycle(self):
         """
-        OPTIMIZED trading cycle with ENHANCED entry system
+        OPTIMIZED trading cycle with smart API usage and dip buying
         """
         print("\n" + "="*70)
         print(f"⚡ CYCLE {datetime.now().strftime('%H:%M:%S')}")
@@ -135,7 +377,7 @@ class BeastModeBotEnhanced:
             
         else:
             # ================================================================
-            # NO POSITION - ENHANCED SCANNING WITH 100-POINT SCORING
+            # NO POSITION - SMART SCANNING WITH DIP DETECTION
             # ================================================================
             self._handle_entry_scanning(snapshot)
     
@@ -179,10 +421,10 @@ class BeastModeBotEnhanced:
     
     def _handle_entry_scanning(self, snapshot: dict):
         """
-        ENHANCED entry scanning with 100-point scoring system
-        Shows detailed analysis with multi-factor breakdown
+        ENHANCED entry scanning with DIP BUYING support
+        Only calls Claude if conditions look promising.
         """
-        print(f"\n🔍 No position. Enhanced scanning with multi-factor analysis...")
+        print(f"\n🔍 No position. Smart scanning with dip detection...")
         
         current_price = snapshot['current_price']
         indicators = snapshot.get('indicators', {})
@@ -204,7 +446,7 @@ class BeastModeBotEnhanced:
             except Exception as e:
                 print(f"   ⚠️  Dip check error: {e}")
         
-        # ENHANCED PRE-FILTER with 100-point scoring!
+        # SMART PRE-FILTER (FREE - no Claude call!)
         should_call, reason = self.smart_api.should_call_claude_for_entry(snapshot, self.product_id)
         
         if not should_call:
@@ -222,7 +464,7 @@ class BeastModeBotEnhanced:
             print(f"   🤖 Calling Claude for DIP BUY analysis...")
             self.dip_buys_today += 1
         else:
-            print(f"   ✅ Strong entry signal detected")
+            print(f"   ✅ Safe entry conditions met")
             print(f"   {reason}")
             print(f"   🤖 Calling Claude for SAFE BUY analysis...")
             self.safe_buys_today += 1
@@ -340,10 +582,10 @@ DO NOT ASK FOR PERMISSION. BE DECISIVE AND AUTOMATIC.
     
     def run_beast_mode(self):
         """
-        RUN ENHANCED BOT with 100-point scoring system
+        RUN OPTIMIZED BOT with smart API management and DIP BUYING
         """
         print("\n" + "="*70)
-        print("🔥🔥🔥 BEAST MODE ENHANCED - MULTI-FACTOR SCORING 🔥🔥🔥")
+        print("🔥🔥🔥 BEAST MODE OPTIMIZED + DIP BUYING 🔥🔥🔥")
         print("="*70)
         print(f"Starting Capital: £{INITIAL_CAPITAL:.2f}")
         print(f"Trading Pair: {self.product_id}")
@@ -359,24 +601,17 @@ DO NOT ASK FOR PERMISSION. BE DECISIVE AND AUTOMATIC.
         print(f"   ✅ Intelligent caching (reuse analysis)")
         print(f"   ✅ DIP BUYING: Catches £133→£140 moves! 💰")
         
-        print(f"\n🎯 NEW: ENHANCED ENTRY SYSTEM")
-        print(f"   ✨ Multi-factor scoring (100-point system)")
-        print(f"   ✨ Multi-timeframe trend analysis")
-        print(f"   ✨ Support/Resistance detection")
-        print(f"   ✨ Market regime adaptation")
-        print(f"   ✨ Expected: +15% win rate, +22% profit")
-        
         if self.smart_api.ENABLE_DIP_BUYING:
-            print(f"\n💰 DIP BUYING SETTINGS:")
+            print(f"\n🎯 DIP BUYING SETTINGS:")
             print(f"   Enabled: YES")
             print(f"   Minimum drop: {self.smart_api.DIP_THRESHOLD_PCT}%")
             print(f"   Maximum drop: {self.smart_api.DIP_MAX_DROP_PCT}% (crash protection)")
             print(f"   RSI threshold: <{self.smart_api.DIP_RSI_MAX} (oversold)")
             print(f"   Volume threshold: >{self.smart_api.DIP_VOLUME_MIN}x average")
         else:
-            print(f"\n💰 DIP BUYING: Disabled")
+            print(f"\n🎯 DIP BUYING: Disabled")
         
-        print(f"\n💸 EXPECTED API COSTS:")
+        print(f"\n💰 EXPECTED API COSTS:")
         print(f"   Old: £4.80/day (480 calls)")
         print(f"   New: £0.08/day (8 calls)")
         print(f"   Savings: £4.72/day = £104/month! 🎉")
@@ -385,11 +620,11 @@ DO NOT ASK FOR PERMISSION. BE DECISIVE AND AUTOMATIC.
         print(f"   - Stop if capital < £{MIN_CAPITAL_THRESHOLD}")
         print(f"   - Stop after {MAX_CONSECUTIVE_LOSSES} consecutive losses")
         
-        print(f"\n🤖 Bot will run 24/7 with enhanced scoring")
+        print(f"\n🤖 Bot will run 24/7 with adaptive polling + dip detection")
         print(f"📊 Press Ctrl+C to stop and see final report")
         print("="*70 + "\n")
         
-        input("⚡ Press ENTER to START ENHANCED TRADING... ")
+        input("⚡ Press ENTER to START OPTIMIZED TRADING... ")
         
         start_time = datetime.now()
         cycle_count = 0
@@ -429,7 +664,7 @@ DO NOT ASK FOR PERMISSION. BE DECISIVE AND AUTOMATIC.
         runtime = datetime.now() - start_time
         
         print("\n" + "="*70)
-        print("📊 FINAL REPORT - ENHANCED BEAST MODE (Multi-Factor Scoring)")
+        print("📊 FINAL REPORT - OPTIMIZED BEAST MODE + DIP BUYING")
         print("="*70)
         
         print(f"\n⏱️  Runtime: {runtime}")
@@ -498,12 +733,6 @@ DO NOT ASK FOR PERMISSION. BE DECISIVE AND AUTOMATIC.
             print("   No trades yet")
         
         print("\n" + "="*70)
-        print("🎯 ENHANCED ENTRY SYSTEM ACTIVE")
-        print("="*70)
-        print(f"This session used multi-factor scoring for better entries.")
-        print(f"Compare these results to your previous sessions!")
-        print("="*70 + "\n")
-        
         if final_stats['total_return'] > 0:
             print(f"✅ SUCCESS! Profit of £{final_stats['total_return']:.2f}!")
         elif final_stats['total_return'] < 0:
@@ -516,5 +745,5 @@ DO NOT ASK FOR PERMISSION. BE DECISIVE AND AUTOMATIC.
 
 
 if __name__ == "__main__":
-    bot = BeastModeBotEnhanced()
+    bot = BeastModeBotOptimized()
     bot.run_beast_mode()

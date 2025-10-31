@@ -1,12 +1,12 @@
 from coinbase.rest import RESTClient
-from coinbase import jwt_generator
 from config import COINBASE_API_KEY, COINBASE_API_SECRET
-import json
+import time
 
 class CoinbaseClient:
     """
     Wrapper for Coinbase Advanced Trade API.
     FIXED for Cloud API Keys (JWT authentication)
+    WITH RETRY LOGIC for connection errors
     """
     
     def __init__(self):
@@ -32,9 +32,40 @@ class CoinbaseClient:
             print("  3. Latest coinbase SDK: pip install --upgrade coinbase-advanced-py")
             raise
     
+    def _retry_request(self, func, *args, max_retries=3, **kwargs):
+        """
+        Wrapper to retry API requests on connection errors
+        """
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except ConnectionResetError as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 * (attempt + 1)  # Exponential backoff: 2s, 4s, 6s
+                    print(f"⚠️  Connection reset, retrying in {wait_time}s ({attempt + 1}/{max_retries})...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"❌ Failed after {max_retries} attempts: {e}")
+                    return None
+            except ConnectionError as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 * (attempt + 1)
+                    print(f"⚠️  Connection error, retrying in {wait_time}s ({attempt + 1}/{max_retries})...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"❌ Failed after {max_retries} attempts: {e}")
+                    return None
+            except Exception as e:
+                # Don't retry on other errors (auth, validation, etc)
+                print(f"❌ Error: {e}")
+                return None
+    
     def get_current_price(self, product_id: str = "SOL-GBP") -> dict:
         """
         Get current spot price for a trading pair.
+        WITH AUTOMATIC RETRY on connection errors
         
         Args:
             product_id: Trading pair (e.g., 'SOL-GBP', 'BTC-USD')
@@ -42,21 +73,20 @@ class CoinbaseClient:
         Returns:
             dict: {"price": 2345.67, "product_id": "SOL-GBP"}
         """
-        try:
+        def _fetch():
             ticker = self.client.get_product(product_id)
             price = float(ticker['price'])
-            
             return {
                 "product_id": product_id,
                 "price": price
             }
-        except Exception as e:
-            print(f"Error fetching price: {e}")
-            return None
+        
+        return self._retry_request(_fetch)
     
     def get_candles(self, product_id: str = "SOL-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
         """
         Get historical candle data.
+        WITH AUTOMATIC RETRY on connection errors
         
         Args:
             product_id: Trading pair
@@ -67,9 +97,7 @@ class CoinbaseClient:
         Returns:
             list: List of candles with [timestamp, low, high, open, close, volume]
         """
-        try:
-            import time
-            
+        def _fetch():
             # Calculate start and end times based on limit
             granularity_seconds = {
                 "ONE_MINUTE": 60,
@@ -112,21 +140,19 @@ class CoinbaseClient:
             parsed_candles.sort(key=lambda x: x['timestamp'])
             
             return parsed_candles
-            
-        except Exception as e:
-            print(f"Error fetching candles: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
+        
+        result = self._retry_request(_fetch)
+        return result if result is not None else []
     
     def get_account_balance(self) -> dict:
         """
         Get account balances for all currencies.
+        WITH AUTOMATIC RETRY on connection errors
         
         Returns:
             dict: {"GBP": 1000.50, "ETH": 0.5, ...}
         """
-        try:
+        def _fetch():
             response = self.client.get_accounts()
             
             # Get accounts from response
@@ -161,22 +187,21 @@ class CoinbaseClient:
                     continue
             
             return balances
-            
-        except Exception as e:
-            print(f"Error fetching balances: {e}")
-            # Return empty dict on error - not critical for trading analysis
-            return {}
+        
+        result = self._retry_request(_fetch)
+        return result if result is not None else {}
     
     def get_product_info(self, product_id: str = "SOL-GBP") -> dict:
         """
         Get detailed product information including fees.
+        WITH AUTOMATIC RETRY on connection errors
         
         Returns:
             dict: Product details
         """
-        try:
+        def _fetch():
             product = self.client.get_product(product_id)
             return product
-        except Exception as e:
-            print(f"Error fetching product info: {e}")
-            return {}
+        
+        result = self._retry_request(_fetch)
+        return result if result is not None else {}
