@@ -35,8 +35,8 @@ TRADING_PAIR = "SOL-GBP"
 # INVESTMENT & CAPITAL
 # ============================================================================
 
-INITIAL_CAPITAL = 500.0      # Starting capital
-TRADE_AMOUNT_GBP = 499.0     # Amount per trade (leave £1 buffer)
+INITIAL_CAPITAL = 538.0      # Starting capital
+TRADE_AMOUNT_GBP = 530.0     # Amount per trade (leave £1 buffer)
 
 # ============================================================================
 # FEE STRUCTURE
@@ -108,7 +108,7 @@ PROFIT_TARGET_PCT = 0.027    # ~2.7% price movement needed
 # RISK MANAGEMENT - OPTIMIZED FOR BETTER RISK/REWARD
 # ============================================================================
 
-STOP_LOSS_PCT = 0.005        # 0.5% stop loss (MUCH TIGHTER!)
+STOP_LOSS_PCT = 0.010       # 0.5% stop loss (MUCH TIGHTER!)
                              # Loss if triggered: ~£2.50
                              # Old: 1.5% = £7.50 loss (terrible!)
                              # New: 0.5% = £2.50 loss (balanced!)

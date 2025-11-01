@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+from coinbase.rest import RESTClient
+from config import COINBASE_API_KEY, COINBASE_API_SECRET
+import time
+
+# Fix newlines in private key
+api_secret = COINBASE_API_SECRET.replace('\\n', '\n')
+
+print("=" * 70)
+print("🔍 COINBASE API PERMISSIONS DIAGNOSTIC TEST")
+print("=" * 70)
+print(f"\nAPI Key: {COINBASE_API_KEY}")
+print(f"Testing permissions...\n")
+
+client = RESTClient(api_key=COINBASE_API_KEY, api_secret=api_secret)
+
+# Test 1: View Permission (GET request)
+print("=" * 70)
+print("TEST 1: VIEW PERMISSION (Get Accounts)")
+print("=" * 70)
+try:
+    accounts = client.get_accounts()
+    print("✅ SUCCESS: Can read account data\n")
+    
+    # Show some balances
+    if hasattr(accounts, 'accounts'):
+        print("   Balances found:")
+        for acc in accounts.accounts[:5]:
+            if hasattr(acc, 'currency') and hasattr(acc, 'available_balance'):
+                curr = acc.currency
+                bal = float(acc.available_balance.value)
+                if bal > 0:
+                    print(f"      {curr}: {bal:.8f}")
+    print()
+except Exception as e:
+    print(f"❌ FAILED: {e}\n")
+    print("If this fails, your API key is completely invalid.\n")
+
+# Test 2: Trade Permission (POST request)
+print("=" * 70)
+print("TEST 2: TRADE PERMISSION (Place Test Order)")
+print("=" * 70)
+print("Attempting to place a £0.50 test BUY order for SOL-GBP...")
+print("(This is just a test - will be cancelled immediately)\n")
+
+try:
+    order = client.market_order_buy(
+        client_order_id=f"test_{int(time.time())}",
+        product_id="SOL-GBP",
+        quote_size="0.50"  # Only 50 pence!
+    )
+    
+    print("✅ SUCCESS: Trade permission is enabled!")
+    print(f"   Test order placed successfully")
+    
+    # Try to cancel it
+    if hasattr(order, 'order_id'):
+        try:
+            print(f"   Cancelling test order...")
+            client.cancel_orders([order.order_id])
+            print(f"   Test order cancelled\n")
+        except:
+            print(f"   (Order may have filled already - only 50p)\n")
+    
+except Exception as e:
+    error_msg = str(e)
+    print(f"❌ FAILED: {error_msg}\n")
+    
+    if "401" in error_msg or "Unauthorized" in error_msg:
+        print("=" * 70)
+        print("🚨 DIAGNOSIS: 401 UNAUTHORIZED - MISSING TRADE PERMISSION")
+        print("=" * 70)
+        print("\nYour API key can READ data but cannot PLACE ORDERS.")
+        print("\n📋 HOW TO FIX:")
+        print("1. Go to: https://portal.cdp.coinbase.com/projects/api-keys")
+        print("2. Find your API key ending in: ...929b")
+        print("3. Click the 'Edit' button")
+        print("4. Expand 'API restrictions'")
+        print("5. Under 'Permissions', CHECK the 'Trade' checkbox ✅")
+        print("6. Expand 'Advanced Settings'")
+        print("7. Make sure 'Signature Algorithm' is ECDSA (NOT Ed25519)")
+        print("8. Click 'Save' or 'Update API Key'")
+        print("9. Wait 1-2 minutes for changes to propagate")
+        print("10. Run this test again")
+        print("=" * 70)
+    else:
+        print("=" * 70)
+        print("🚨 UNEXPECTED ERROR")
+        print("=" * 70)
+        print(f"Error type: {type(e).__name__}")
+        print(f"Full error: {e}")
+        print("\nTry running: pip install --upgrade coinbase-advanced-py")
+        print("=" * 70)
+
+print("\n" + "=" * 70)
+print("TEST COMPLETE")
+print("=" * 70)
