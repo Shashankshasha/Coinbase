@@ -1,6 +1,6 @@
 """
 ENHANCED ENTRY SYSTEM - Multi-Factor Scoring Algorithm
-Combines multiple signals for higher-confidence entries
+ULTRA-STRICT: Graduated momentum scoring for realistic results
 """
 
 from data_layer.coinbase_client import CoinbaseClient
@@ -14,7 +14,7 @@ class EnhancedEntrySystem:
     
     Scoring breakdown (100 points total):
     - Trend Alignment (30 pts): Multi-timeframe trend confirmation
-    - Momentum (25 pts): RSI positioning and strength
+    - Momentum (25 pts): RSI + MACD + Stochastic (ULTRA-STRICT)
     - Volume (20 pts): Volume confirmation
     - Support/Resistance (15 pts): Price location analysis
     - Market Regime (10 pts): Trending vs ranging detection
@@ -53,6 +53,8 @@ class EnhancedEntrySystem:
         }
         """
         try:
+            print(f"\n🔍 Running Enhanced Entry Analysis...")
+            
             score_breakdown = {}
             total_score = 0
             
@@ -65,7 +67,7 @@ class EnhancedEntrySystem:
             }
             total_score += trend_score
             
-            # 2. MOMENTUM (25 points max)
+            # 2. MOMENTUM (25 points max) - ULTRA-STRICT!
             momentum_score, momentum_details = self._score_momentum(snapshot)
             score_breakdown['momentum'] = {
                 'score': momentum_score,
@@ -111,13 +113,34 @@ class EnhancedEntrySystem:
             # Build reason string
             reason = self._build_reason_string(total_score, score_breakdown, should_enter)
             
+            # Print summary
+            print(f"   Score: {total_score}/100 ({self._get_quality_rating(total_score)})")
+            print(f"   Top factors:")
+            sorted_factors = sorted(score_breakdown.items(), key=lambda x: x[1]['score'], reverse=True)
+            for factor, data in sorted_factors[:2]:
+                pct = (data['score'] / data['max']) * 100
+                icon = "✅" if pct >= 80 else "⚠️" if pct >= 50 else "❌"
+                print(f"      {icon} {factor.replace('_', ' ').title()}: {data['score']}/{data['max']} ({pct:.0f}%)")
+            
+            print(f"   Weakest factors:")
+            for factor, data in sorted_factors[-2:]:
+                pct = (data['score'] / data['max']) * 100
+                icon = "✅" if pct >= 80 else "⚠️" if pct >= 50 else "❌"
+                print(f"      {icon} {factor.replace('_', ' ').title()}: {data['score']}/{data['max']} ({pct:.0f}%)")
+            
+            if should_enter:
+                print(f"   ✅ Strong entry signal detected")
+            else:
+                print(f"   ⏸️  Conditions not met (need 70+)")
+            
             return {
                 'should_enter': should_enter,
                 'confidence': confidence,
                 'score': total_score,
                 'breakdown': score_breakdown,
                 'reason': reason,
-                'quality': self._get_quality_rating(total_score)
+                'quality': self._get_quality_rating(total_score),
+                'summary': reason
             }
             
         except Exception as e:
@@ -128,7 +151,8 @@ class EnhancedEntrySystem:
                 'score': 0,
                 'breakdown': {},
                 'reason': f"Analysis error: {e}",
-                'quality': 'ERROR'
+                'quality': 'ERROR',
+                'summary': 'ERROR'
             }
     
     def _score_trend_alignment(self, product_id: str) -> tuple[int, str]:
@@ -218,51 +242,97 @@ class EnhancedEntrySystem:
         # 2. Current price > Short MA (price above recent average)
         return short_ma > long_ma and current_price > short_ma
     
-    def _score_momentum(self, snapshot: dict) -> tuple[int, str]:
+    def _score_momentum(self, snapshot: dict) -> tuple[int, dict]:
         """
-        Score: 0-25 points
-        Evaluate RSI and momentum indicators
+        Score momentum indicators (RSI, MACD, Stochastic)
+        Max: 25 points
         
-        25 pts: RSI in ideal zone (40-60) - balanced momentum
-        20 pts: RSI slightly oversold (30-40) - bounce potential
-        15 pts: RSI neutral but acceptable (60-70)
-        10 pts: RSI very oversold (<30) - risky but potential
-        5 pts: RSI overbought (70-80) - risky
-        0 pts: RSI extremely overbought (>80) - avoid
+        ULTRA-STRICT: Graduated scoring within ranges
+        Perfect score requires ideal conditions across all 3 indicators
         """
+        score = 0
+        details = []
+        
         indicators = snapshot.get('indicators', {})
         rsi = indicators.get('rsi', 50)
-        macd_cross = indicators.get('macd_cross', '')
+        macd_hist = indicators.get('macd_histogram', 0)
+        macd_cross = indicators.get('macd_cross', 'neutral')
+        stoch_k = indicators.get('stoch_k', 50)
         
-        # Base score from RSI
-        if 40 <= rsi <= 60:
-            score = 25
-            rsi_rating = "ideal"
+        # RSI Scoring (0-10 points) - GRADUATED
+        if 45 <= rsi <= 55:
+            rsi_score = 10  # Perfect neutral zone
+            details.append(f"RSI ideal ({rsi:.0f})")
+        elif 40 <= rsi < 45 or 55 < rsi <= 60:
+            rsi_score = 8  # Good but not perfect
+            details.append(f"RSI good ({rsi:.0f})")
         elif 30 <= rsi < 40:
-            score = 20
-            rsi_rating = "slightly oversold (good)"
-        elif 60 < rsi <= 70:
-            score = 15
-            rsi_rating = "acceptable"
+            rsi_score = 6  # Slightly oversold
+            details.append(f"RSI slightly oversold ({rsi:.0f})")
+        elif 60 < rsi <= 65:
+            rsi_score = 5  # Getting elevated
+            details.append(f"RSI elevated ({rsi:.0f})")
+        elif 65 < rsi <= 70:
+            rsi_score = 3  # Too high
+            details.append(f"RSI high ({rsi:.0f})")
         elif rsi < 30:
-            score = 10
-            rsi_rating = "very oversold (risky)"
-        elif 70 < rsi <= 80:
-            score = 5
-            rsi_rating = "overbought (risky)"
+            rsi_score = 2  # Very oversold
+            details.append(f"RSI very oversold ({rsi:.0f})")
+        else:  # > 70
+            rsi_score = 0  # Overbought
+            details.append(f"RSI overbought ({rsi:.0f})")
+        
+        score += rsi_score
+        
+        # MACD Scoring (0-10 points) - GRADUATED
+        if macd_cross == 'bullish' and macd_hist > 0.1:
+            macd_score = 10  # Strong bullish
+            details.append(f"MACD strong bullish")
+        elif macd_cross == 'bullish' and macd_hist > 0:
+            macd_score = 7  # Weak bullish
+            details.append(f"MACD bullish (weak hist: {macd_hist:.3f})")
+        elif macd_cross == 'bullish':
+            macd_score = 5  # Bullish but negative histogram
+            details.append(f"MACD bullish (negative hist)")
+        elif macd_cross == 'neutral' and macd_hist > 0.05:
+            macd_score = 5  # Neutral but positive momentum
+            details.append(f"MACD neutral-positive")
+        elif macd_cross == 'neutral':
+            macd_score = 3  # Neutral
+            details.append(f"MACD neutral")
+        else:  # bearish
+            macd_score = 0  # Bearish
+            details.append(f"MACD bearish")
+        
+        score += macd_score
+        
+        # Stochastic Scoring (0-5 points) - GRADUATED
+        if 40 <= stoch_k <= 60:
+            stoch_score = 5  # Perfect zone
+            details.append(f"Stoch ideal ({stoch_k:.0f})")
+        elif 30 <= stoch_k < 40 or 60 < stoch_k <= 70:
+            stoch_score = 4  # Good
+            details.append(f"Stoch good ({stoch_k:.0f})")
+        elif 20 <= stoch_k < 30 or 70 < stoch_k <= 80:
+            stoch_score = 3  # OK
+            details.append(f"Stoch OK ({stoch_k:.0f})")
+        elif stoch_k < 20:
+            stoch_score = 2  # Oversold
+            details.append(f"Stoch oversold ({stoch_k:.0f})")
         else:  # > 80
-            score = 0
-            rsi_rating = "extremely overbought (avoid)"
+            stoch_score = 0  # Overbought
+            details.append(f"Stoch overbought ({stoch_k:.0f})")
         
-        # Bonus for bullish MACD
-        macd_bonus = ""
-        if macd_cross == 'bullish':
-            score = min(score + 5, 25)  # Cap at 25
-            macd_bonus = " +MACD✅"
+        score += stoch_score
         
-        detail = f"RSI {rsi:.1f} ({rsi_rating}){macd_bonus}"
+        # Add detailed breakdown for debugging
+        details.append(f"[RSI:{rsi_score} MACD:{macd_score} Stoch:{stoch_score}]")
         
-        return score, detail
+        return score, {
+            'score': score,
+            'max': 25,
+            'details': ', '.join(details)
+        }
     
     def _score_volume(self, snapshot: dict) -> tuple[int, str]:
         """
@@ -606,32 +676,3 @@ class EnhancedEntrySystem:
             return "FAIR"
         else:
             return "POOR"
-    
-    def print_detailed_analysis(self, analysis: dict):
-        """
-        Print detailed breakdown of the analysis
-        """
-        print(f"\n{'='*70}")
-        print(f"🎯 ENHANCED ENTRY ANALYSIS")
-        print(f"{'='*70}")
-        
-        print(f"\n📊 OVERALL SCORE: {analysis['score']}/100 ({analysis['quality']})")
-        print(f"   Confidence: {analysis['confidence']*100:.1f}%")
-        print(f"   Decision: {'✅ ENTER' if analysis['should_enter'] else '❌ SKIP'}")
-        
-        print(f"\n📋 BREAKDOWN:")
-        for factor, data in analysis['breakdown'].items():
-            score = data['score']
-            max_score = data['max']
-            pct = (score / max_score * 100) if max_score > 0 else 0
-            
-            # Visual bar
-            filled = int(pct / 10)
-            bar = '█' * filled + '░' * (10 - filled)
-            
-            print(f"\n   {factor.replace('_', ' ').title()}:")
-            print(f"   {bar} {score}/{max_score} ({pct:.0f}%)")
-            print(f"   └─ {data['details']}")
-        
-        print(f"\n💡 {analysis['reason']}")
-        print(f"{'='*70}\n")

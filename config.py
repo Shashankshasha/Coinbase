@@ -35,8 +35,9 @@ TRADING_PAIR = "SOL-GBP"
 # INVESTMENT & CAPITAL
 # ============================================================================
 
-INITIAL_CAPITAL = 538.0      # Starting capital
-TRADE_AMOUNT_GBP = 530.0     # Amount per trade (leave £1 buffer)
+# Update these values
+INITIAL_CAPITAL = 524.83
+TRADE_AMOUNT_GBP = 520.00  # Leave £5 buffer
 
 # ============================================================================
 # FEE STRUCTURE

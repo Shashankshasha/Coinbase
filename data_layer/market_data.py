@@ -3,9 +3,11 @@ from data_layer.indicators import TechnicalIndicators
 from config import TRADING_PAIR, RSI_PERIOD, EMA_FAST, EMA_SLOW
 from datetime import datetime
 
+
 class MarketData:
     """
     High-level interface for market data and analysis.
+    FIXED: No more hardcoded "ETH" - uses actual trading pair symbol
     """
     
     def __init__(self):
@@ -15,6 +17,7 @@ class MarketData:
     def get_full_market_snapshot(self, product_id: str = None) -> dict:
         """
         Get complete market snapshot with price, candles, and indicators.
+        FIXED: Adds correct crypto symbol to summary
         
         Returns:
             dict: Complete market analysis
@@ -22,6 +25,9 @@ class MarketData:
         product_id = product_id or TRADING_PAIR
         
         print(f"\n📊 Fetching market data for {product_id}...")
+        
+        # Extract crypto symbol (e.g., "SOL-GBP" -> "SOL")
+        crypto_symbol = product_id.split('-')[0]
         
         # Get current price
         price_data = self.coinbase.get_current_price(product_id)
@@ -52,6 +58,9 @@ class MarketData:
         # Get account balance
         balances = self.coinbase.get_account_balance()
         
+        # Create summary with CORRECT symbol
+        summary = f"{crypto_symbol} is at £{price_data['price']:.2f}. RSI: {indicators.get('rsi', 0):.2f}, Signal: {signal['signal']}"
+        
         snapshot = {
             'timestamp': datetime.now().isoformat(),
             'product_id': product_id,
@@ -59,25 +68,32 @@ class MarketData:
             'balances': balances,
             'indicators': indicators,
             'signal': signal,
+            'summary': summary,  # Added summary field
             'recent_candles': candles[-10:]  # Last 10 candles for context
         }
         
         print(f"✅ Market snapshot ready")
         print(f"   Price: £{price_data['price']:.2f}")
-        print(f"   RSI: {indicators.get('rsi')}")
-        print(f"   Signal: {signal['signal']} (strength: {signal['strength']})")
+        print(f"   RSI: {indicators.get('rsi'):.2f}")
+        print(f"   Signal: {signal['signal']} (strength: {signal['strength']:.2f})")
         
         return snapshot
     
     def format_for_claude(self, snapshot: dict) -> str:
         """
         Format market snapshot into a readable prompt for Claude.
+        FIXED: Uses actual crypto symbol instead of hardcoded "ETH"
         
         Returns:
             str: Formatted market analysis for Claude
         """
         if not snapshot:
             return "No market data available"
+        
+        # Extract crypto symbol from product_id
+        product_id = snapshot['product_id']
+        crypto_symbol = product_id.split('-')[0]
+        base_currency = product_id.split('-')[1] if '-' in product_id else 'GBP'
         
         indicators = snapshot['indicators']
         signal = snapshot['signal']
@@ -88,24 +104,24 @@ Current Market Analysis for {snapshot['product_id']}:
 
 💰 PRICE & BALANCE:
 - Current Price: £{snapshot['current_price']:.2f}
-- Price Change: {indicators.get('price_change_pct', 0)}%
-- Your GBP Balance: £{balances.get('GBP', 0):.2f}
-- Your ETH Balance: {balances.get('ETH', 0):.6f} ETH
+- Price Change: {indicators.get('price_change_pct', 0):.2f}%
+- Your {base_currency} Balance: £{balances.get(base_currency, 0):.2f}
+- Your {crypto_symbol} Balance: {balances.get(crypto_symbol, 0):.6f} {crypto_symbol}
 
 📊 TECHNICAL INDICATORS:
-- RSI (14): {indicators.get('rsi')} {"🔴 Overbought" if indicators.get('rsi', 0) > 70 else "🟢 Oversold" if indicators.get('rsi', 0) < 30 else "⚪ Neutral"}
+- RSI (14): {indicators.get('rsi', 0):.2f} {"🔴 Overbought" if indicators.get('rsi', 0) > 70 else "🟢 Oversold" if indicators.get('rsi', 0) < 30 else "⚪ Neutral"}
 - EMA 10: £{indicators.get('ema_10', 0):.2f}
 - EMA 50: £{indicators.get('ema_50', 0):.2f}
-- EMA Cross: {indicators.get('ema_cross')} {"📈" if indicators.get('ema_cross') == 'bullish' else "📉"}
-- MACD Line: {indicators.get('macd_line')}
-- MACD Signal: {indicators.get('macd_signal')}
-- MACD Histogram: {indicators.get('macd_histogram')}
-- MACD Status: {indicators.get('macd_cross')}
-- Volume Change: {indicators.get('volume_change_pct')}%
+- EMA Cross: {indicators.get('ema_cross', 'neutral')} {"📈" if indicators.get('ema_cross') == 'bullish' else "📉" if indicators.get('ema_cross') == 'bearish' else "➡️"}
+- MACD Line: {indicators.get('macd_line', 0):.4f}
+- MACD Signal: {indicators.get('macd_signal', 0):.4f}
+- MACD Histogram: {indicators.get('macd_histogram', 0):.4f}
+- MACD Status: {indicators.get('macd_cross', 'neutral')}
+- Volume Change: {indicators.get('volume_change_pct', 0):.2f}%
 
 🎯 PRELIMINARY SIGNAL:
 Signal: {signal['signal']}
-Strength: {signal['strength']}
+Strength: {signal['strength']:.2f}
 Reasons: {', '.join(signal['reasons'])}
 
 📈 RECENT PRICE ACTION (Last 10 candles):
