@@ -3,4 +3,15 @@ python-dotenv
 coinbase-advanced-py
 pandas
 numpy
-requestssqlalchemy
+# requestssqlalchemy
+# ML-Enhanced Trading Bot Requirements
+# Install with: pip install -r requirements_ml.txt --break-system-packages
+
+# Machine Learning
+scikit-learn>=1.3.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Optional (for advanced features later)
+# tensorflow>=2.13.0  # For LSTM price prediction
+# xgboost>=2.0.0  # For better gradient boosting

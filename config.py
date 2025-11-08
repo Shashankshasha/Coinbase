@@ -74,7 +74,7 @@ API_COST_GBP = 0.10          # Claude API cost per trading cycle (~£0.08-0.10)
 # ============================================================================
 
 PROFIT_TARGET_GBP = 2.0      # £2.00 net profit target (OPTIMIZED!)
-PROFIT_TARGET_PCT = 0.027    # ~2.7% price movement needed
+PROFIT_TARGET_PCT = 0.028    # ~2.7% price movement needed
 
 # ============================================================================
 # PROFIT CALCULATION (AUTOMATIC)
@@ -127,7 +127,7 @@ STOP_LOSS_PCT = 0.010       # 0.5% stop loss (MUCH TIGHTER!)
 # Result: PROFITABLE! ✅
 
 MAX_POSITION_SIZE = 10000    # Maximum position size
-MIN_CONFIDENCE = 0.65        # 65% minimum confidence for trades
+MIN_CONFIDENCE = 0.70      # 65% minimum confidence for trades
 
 COOLDOWN_MINUTES = 3         # Wait 3 minutes between trade checks
 

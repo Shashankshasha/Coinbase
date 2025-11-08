@@ -78,7 +78,7 @@ def display_dashboard():
             emoji = "❌"
         
         print(f"   {emoji} Score: {score}/100 ({quality})")
-        print(f"   [{bar}] 70% threshold")
+        print(f"   [{bar}] 75% threshold")
         
         # Factor breakdown (compact)
         breakdown = analysis['breakdown']

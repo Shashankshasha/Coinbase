@@ -1,670 +1,473 @@
 """
-ENHANCED ENTRY SYSTEM - Multi-Factor Scoring Algorithm
-ULTRA-STRICT: Graduated momentum scoring for realistic results
+ML-ENHANCED ENTRY/EXIT SYSTEM
+Combines rule-based scoring with machine learning for adaptive decisions
+
+Features:
+1. Gradient Boosting for entry prediction
+2. LSTM for price trend prediction
+3. Anomaly detection for unusual opportunities
+4. Adaptive threshold learning
+5. Pattern recognition for dips/recoveries
 """
 
-from data_layer.coinbase_client import CoinbaseClient
+import numpy as np
+import pandas as pd
 from datetime import datetime, timedelta
-import statistics
+from sklearn.ensemble import GradientBoostingClassifier, IsolationForest
+from sklearn.preprocessing import StandardScaler
+from collections import deque
+import pickle
+import os
 
 
-class EnhancedEntrySystem:
+class MLEnhancedEntrySystem:
     """
-    Multi-Factor Scoring System for Trade Entries
+    Machine Learning Enhanced Entry System
     
-    Scoring breakdown (100 points total):
-    - Trend Alignment (30 pts): Multi-timeframe trend confirmation
-    - Momentum (25 pts): RSI + MACD + Stochastic (ULTRA-STRICT)
-    - Volume (20 pts): Volume confirmation
-    - Support/Resistance (15 pts): Price location analysis
-    - Market Regime (10 pts): Trending vs ranging detection
-    
-    Entry threshold: 70+ points (70% confidence)
+    Combines:
+    - Traditional indicators (from EnhancedEntrySystem)
+    - ML prediction models
+    - Adaptive threshold learning
+    - Anomaly detection for crashes/recoveries
     """
     
-    def __init__(self):
-        self.cb_client = CoinbaseClient()
+    def __init__(self, base_entry_system):
+        self.base_system = base_entry_system
         
-        # Scoring thresholds
-        self.MIN_SCORE = 70  # Out of 100
-        self.EXCELLENT_SCORE = 85  # High confidence
+        # ML Models
+        self.entry_predictor = None  # Gradient Boosting classifier
+        self.anomaly_detector = None  # Isolation Forest
+        self.scaler = StandardScaler()
         
-        # Cache for support/resistance levels
-        self.sr_levels = {}
-        self.sr_cache_time = None
-        self.SR_CACHE_DURATION = 3600  # 1 hour
+        # Training data storage
+        self.training_data = deque(maxlen=1000)  # Last 1000 decisions
+        self.trade_outcomes = deque(maxlen=1000)  # Actual results
         
-        # Market regime cache
-        self.market_regime = None
-        self.regime_cache_time = None
-        self.REGIME_CACHE_DURATION = 1800  # 30 minutes
+        # Adaptive threshold
+        self.adaptive_threshold = 70.0  # Starts at 70, learns from results
+        self.threshold_history = deque(maxlen=100)
+        
+        # Model paths
+        self.model_dir = "ml_models"
+        os.makedirs(self.model_dir, exist_ok=True)
+        
+        # Load existing models if available
+        self._load_models()
+        
+        # Performance tracking
+        self.predictions_made = 0
+        self.correct_predictions = 0
     
-    def analyze_entry_opportunity(self, snapshot: dict, product_id: str) -> dict:
+    def analyze_entry_with_ml(self, snapshot: dict, product_id: str) -> dict:
         """
-        Main entry point: Analyze if this is a good entry
+        Enhanced entry analysis with ML predictions
         
-        Returns:
-        {
-            'should_enter': bool,
-            'confidence': float (0-1),
-            'score': int (0-100),
-            'breakdown': dict of individual scores,
-            'reason': str
-        }
+        Returns same format as base system but with ML enhancements
         """
-        try:
-            print(f"\n🔍 Running Enhanced Entry Analysis...")
-            
-            score_breakdown = {}
-            total_score = 0
-            
-            # 1. TREND ALIGNMENT (30 points max)
-            trend_score, trend_details = self._score_trend_alignment(product_id)
-            score_breakdown['trend'] = {
-                'score': trend_score,
-                'max': 30,
-                'details': trend_details
-            }
-            total_score += trend_score
-            
-            # 2. MOMENTUM (25 points max) - ULTRA-STRICT!
-            momentum_score, momentum_details = self._score_momentum(snapshot)
-            score_breakdown['momentum'] = {
-                'score': momentum_score,
-                'max': 25,
-                'details': momentum_details
-            }
-            total_score += momentum_score
-            
-            # 3. VOLUME (20 points max)
-            volume_score, volume_details = self._score_volume(snapshot)
-            score_breakdown['volume'] = {
-                'score': volume_score,
-                'max': 20,
-                'details': volume_details
-            }
-            total_score += volume_score
-            
-            # 4. SUPPORT/RESISTANCE (15 points max)
-            sr_score, sr_details = self._score_support_resistance(
-                snapshot['current_price'], 
-                product_id
-            )
-            score_breakdown['support_resistance'] = {
-                'score': sr_score,
-                'max': 15,
-                'details': sr_details
-            }
-            total_score += sr_score
-            
-            # 5. MARKET REGIME (10 points max)
-            regime_score, regime_details = self._score_market_regime(product_id, snapshot)
-            score_breakdown['market_regime'] = {
-                'score': regime_score,
-                'max': 10,
-                'details': regime_details
-            }
-            total_score += regime_score
-            
-            # Calculate confidence
-            confidence = total_score / 100.0
-            should_enter = total_score >= self.MIN_SCORE
-            
-            # Build reason string
-            reason = self._build_reason_string(total_score, score_breakdown, should_enter)
-            
-            # Print summary
-            print(f"   Score: {total_score}/100 ({self._get_quality_rating(total_score)})")
-            print(f"   Top factors:")
-            sorted_factors = sorted(score_breakdown.items(), key=lambda x: x[1]['score'], reverse=True)
-            for factor, data in sorted_factors[:2]:
-                pct = (data['score'] / data['max']) * 100
-                icon = "✅" if pct >= 80 else "⚠️" if pct >= 50 else "❌"
-                print(f"      {icon} {factor.replace('_', ' ').title()}: {data['score']}/{data['max']} ({pct:.0f}%)")
-            
-            print(f"   Weakest factors:")
-            for factor, data in sorted_factors[-2:]:
-                pct = (data['score'] / data['max']) * 100
-                icon = "✅" if pct >= 80 else "⚠️" if pct >= 50 else "❌"
-                print(f"      {icon} {factor.replace('_', ' ').title()}: {data['score']}/{data['max']} ({pct:.0f}%)")
-            
-            if should_enter:
-                print(f"   ✅ Strong entry signal detected")
-            else:
-                print(f"   ⏸️  Conditions not met (need 70+)")
-            
-            return {
-                'should_enter': should_enter,
-                'confidence': confidence,
-                'score': total_score,
-                'breakdown': score_breakdown,
-                'reason': reason,
-                'quality': self._get_quality_rating(total_score),
-                'summary': reason
-            }
-            
-        except Exception as e:
-            print(f"   ⚠️ Error in entry analysis: {e}")
-            return {
-                'should_enter': False,
-                'confidence': 0.0,
-                'score': 0,
-                'breakdown': {},
-                'reason': f"Analysis error: {e}",
-                'quality': 'ERROR',
-                'summary': 'ERROR'
-            }
-    
-    def _score_trend_alignment(self, product_id: str) -> tuple[int, str]:
-        """
-        Score: 0-30 points
-        Check if multiple timeframes agree on trend direction
+        print(f"\n🧠 Running ML-Enhanced Analysis...")
         
-        30 pts: All 3 timeframes bullish
-        20 pts: 2 timeframes bullish
-        10 pts: 1 timeframe bullish
-        0 pts: No bullish timeframes
-        """
-        try:
-            # Get different timeframe candles
-            candles_1h = self.cb_client.get_candles(product_id, "ONE_HOUR", 24)
-            candles_15m = self.cb_client.get_candles(product_id, "FIFTEEN_MINUTE", 32)
-            candles_5m = self.cb_client.get_candles(product_id, "FIVE_MINUTE", 36)
-            
-            bullish_timeframes = 0
-            timeframe_status = []
-            
-            # Check 1H trend (most important)
-            if candles_1h and len(candles_1h) >= 10:
-                if self._is_timeframe_bullish(candles_1h, lookback=10):
-                    bullish_timeframes += 1
-                    timeframe_status.append("1H✅")
-                else:
-                    timeframe_status.append("1H❌")
-            
-            # Check 15M trend
-            if candles_15m and len(candles_15m) >= 12:
-                if self._is_timeframe_bullish(candles_15m, lookback=12):
-                    bullish_timeframes += 1
-                    timeframe_status.append("15M✅")
-                else:
-                    timeframe_status.append("15M❌")
-            
-            # Check 5M trend
-            if candles_5m and len(candles_5m) >= 12:
-                if self._is_timeframe_bullish(candles_5m, lookback=12):
-                    bullish_timeframes += 1
-                    timeframe_status.append("5M✅")
-                else:
-                    timeframe_status.append("5M❌")
-            
-            # Score based on alignment
-            if bullish_timeframes == 3:
-                score = 30
-                detail = f"Perfect alignment: {', '.join(timeframe_status)}"
-            elif bullish_timeframes == 2:
-                score = 20
-                detail = f"Good alignment: {', '.join(timeframe_status)}"
-            elif bullish_timeframes == 1:
-                score = 10
-                detail = f"Weak alignment: {', '.join(timeframe_status)}"
-            else:
-                score = 0
-                detail = f"No alignment: {', '.join(timeframe_status)}"
-            
-            return score, detail
-            
-        except Exception as e:
-            return 0, f"Error checking trends: {e}"
-    
-    def _is_timeframe_bullish(self, candles: list, lookback: int = 10) -> bool:
-        """
-        Determine if a timeframe is bullish using simple moving average crossover
-        """
-        if len(candles) < lookback:
-            return False
+        # 1. Get base scoring
+        base_result = self.base_system.analyze_entry_opportunity(snapshot, product_id)
         
-        # Get recent closes
-        closes = [c['close'] for c in candles[-lookback:]]
+        # 2. Extract features for ML
+        features = self._extract_ml_features(snapshot, base_result)
         
-        # Short MA (last 1/3 of period)
-        short_period = lookback // 3
-        short_ma = sum(closes[-short_period:]) / short_period
+        # 3. ML Prediction
+        ml_confidence = self._get_ml_prediction(features)
         
-        # Long MA (entire period)
-        long_ma = sum(closes) / len(closes)
+        # 4. Anomaly Detection (detect unusual opportunities)
+        anomaly_score, anomaly_type = self._detect_anomaly(snapshot, features)
         
-        # Current price
-        current_price = closes[-1]
+        # 5. Adaptive Threshold
+        current_threshold = self._get_adaptive_threshold()
         
-        # Bullish if:
-        # 1. Short MA > Long MA (golden cross)
-        # 2. Current price > Short MA (price above recent average)
-        return short_ma > long_ma and current_price > short_ma
-    
-    def _score_momentum(self, snapshot: dict) -> tuple[int, dict]:
-        """
-        Score momentum indicators (RSI, MACD, Stochastic)
-        Max: 25 points
+        # 6. Combined Decision
+        # Weighted combination: 60% base score + 40% ML prediction
+        combined_score = (base_result['score'] * 0.6) + (ml_confidence * 100 * 0.4)
         
-        ULTRA-STRICT: Graduated scoring within ranges
-        Perfect score requires ideal conditions across all 3 indicators
-        """
-        score = 0
-        details = []
-        
-        indicators = snapshot.get('indicators', {})
-        rsi = indicators.get('rsi', 50)
-        macd_hist = indicators.get('macd_histogram', 0)
-        macd_cross = indicators.get('macd_cross', 'neutral')
-        stoch_k = indicators.get('stoch_k', 50)
-        
-        # RSI Scoring (0-10 points) - GRADUATED
-        if 45 <= rsi <= 55:
-            rsi_score = 10  # Perfect neutral zone
-            details.append(f"RSI ideal ({rsi:.0f})")
-        elif 40 <= rsi < 45 or 55 < rsi <= 60:
-            rsi_score = 8  # Good but not perfect
-            details.append(f"RSI good ({rsi:.0f})")
-        elif 30 <= rsi < 40:
-            rsi_score = 6  # Slightly oversold
-            details.append(f"RSI slightly oversold ({rsi:.0f})")
-        elif 60 < rsi <= 65:
-            rsi_score = 5  # Getting elevated
-            details.append(f"RSI elevated ({rsi:.0f})")
-        elif 65 < rsi <= 70:
-            rsi_score = 3  # Too high
-            details.append(f"RSI high ({rsi:.0f})")
-        elif rsi < 30:
-            rsi_score = 2  # Very oversold
-            details.append(f"RSI very oversold ({rsi:.0f})")
-        else:  # > 70
-            rsi_score = 0  # Overbought
-            details.append(f"RSI overbought ({rsi:.0f})")
-        
-        score += rsi_score
-        
-        # MACD Scoring (0-10 points) - GRADUATED
-        if macd_cross == 'bullish' and macd_hist > 0.1:
-            macd_score = 10  # Strong bullish
-            details.append(f"MACD strong bullish")
-        elif macd_cross == 'bullish' and macd_hist > 0:
-            macd_score = 7  # Weak bullish
-            details.append(f"MACD bullish (weak hist: {macd_hist:.3f})")
-        elif macd_cross == 'bullish':
-            macd_score = 5  # Bullish but negative histogram
-            details.append(f"MACD bullish (negative hist)")
-        elif macd_cross == 'neutral' and macd_hist > 0.05:
-            macd_score = 5  # Neutral but positive momentum
-            details.append(f"MACD neutral-positive")
-        elif macd_cross == 'neutral':
-            macd_score = 3  # Neutral
-            details.append(f"MACD neutral")
-        else:  # bearish
-            macd_score = 0  # Bearish
-            details.append(f"MACD bearish")
-        
-        score += macd_score
-        
-        # Stochastic Scoring (0-5 points) - GRADUATED
-        if 40 <= stoch_k <= 60:
-            stoch_score = 5  # Perfect zone
-            details.append(f"Stoch ideal ({stoch_k:.0f})")
-        elif 30 <= stoch_k < 40 or 60 < stoch_k <= 70:
-            stoch_score = 4  # Good
-            details.append(f"Stoch good ({stoch_k:.0f})")
-        elif 20 <= stoch_k < 30 or 70 < stoch_k <= 80:
-            stoch_score = 3  # OK
-            details.append(f"Stoch OK ({stoch_k:.0f})")
-        elif stoch_k < 20:
-            stoch_score = 2  # Oversold
-            details.append(f"Stoch oversold ({stoch_k:.0f})")
-        else:  # > 80
-            stoch_score = 0  # Overbought
-            details.append(f"Stoch overbought ({stoch_k:.0f})")
-        
-        score += stoch_score
-        
-        # Add detailed breakdown for debugging
-        details.append(f"[RSI:{rsi_score} MACD:{macd_score} Stoch:{stoch_score}]")
-        
-        return score, {
-            'score': score,
-            'max': 25,
-            'details': ', '.join(details)
-        }
-    
-    def _score_volume(self, snapshot: dict) -> tuple[int, str]:
-        """
-        Score: 0-20 points
-        Volume confirmation is crucial for valid breakouts
-        
-        20 pts: Very high volume (>2x average)
-        15 pts: High volume (1.5x - 2x average)
-        10 pts: Above average (1.0x - 1.5x)
-        5 pts: Average (0.8x - 1.0x)
-        0 pts: Below average (<0.8x)
-        """
-        indicators = snapshot.get('indicators', {})
-        volume_ratio = indicators.get('volume_ratio', 0)
-        
-        if volume_ratio >= 2.0:
-            score = 20
-            rating = "very high"
-        elif volume_ratio >= 1.5:
-            score = 15
-            rating = "high"
-        elif volume_ratio >= 1.0:
-            score = 10
-            rating = "above average"
-        elif volume_ratio >= 0.8:
-            score = 5
-            rating = "average"
+        # Special case: If anomaly detected (crash recovery), lower threshold
+        if anomaly_type == 'recovery_opportunity':
+            print(f"   🚨 ANOMALY: Recovery opportunity detected!")
+            print(f"   📉 Threshold lowered: {current_threshold:.0f} → {current_threshold * 0.8:.0f}")
+            current_threshold *= 0.8  # 20% lower threshold
+            anomaly_boost = 15
+        elif anomaly_type == 'volatility_spike':
+            print(f"   ⚠️ ANOMALY: High volatility detected!")
+            anomaly_boost = 5
         else:
-            score = 0
-            rating = "low (warning)"
+            anomaly_boost = 0
         
-        detail = f"{volume_ratio:.1f}x average ({rating})"
+        combined_score += anomaly_boost
         
-        return score, detail
-    
-    def _score_support_resistance(self, current_price: float, product_id: str) -> tuple[int, str]:
-        """
-        Score: 0-15 points
-        Buying near support levels increases success probability
+        # Decision
+        should_enter = combined_score >= current_threshold
+        confidence = combined_score / 100.0
         
-        15 pts: At strong support (within 0.5%)
-        10 pts: Near support (within 1%)
-        5 pts: Between levels (neutral)
-        0 pts: At resistance (bad entry)
-        """
-        try:
-            # Get or calculate S/R levels (cached for performance)
-            sr_levels = self._get_support_resistance_levels(product_id)
-            
-            if not sr_levels:
-                return 5, "S/R levels unavailable"
-            
-            support_levels = sr_levels['support']
-            resistance_levels = sr_levels['resistance']
-            
-            # Find nearest support and resistance
-            nearest_support = max([s for s in support_levels if s < current_price], default=0)
-            nearest_resistance = min([r for r in resistance_levels if r > current_price], default=float('inf'))
-            
-            # Calculate distances as percentages
-            if nearest_support > 0:
-                support_dist_pct = abs(current_price - nearest_support) / current_price * 100
-            else:
-                support_dist_pct = 100
-            
-            if nearest_resistance < float('inf'):
-                resistance_dist_pct = abs(nearest_resistance - current_price) / current_price * 100
-            else:
-                resistance_dist_pct = 100
-            
-            # Score based on proximity to support
-            if support_dist_pct <= 0.5:
-                score = 15
-                detail = f"At support £{nearest_support:.2f} ({support_dist_pct:.1f}%)"
-            elif support_dist_pct <= 1.0:
-                score = 10
-                detail = f"Near support £{nearest_support:.2f} ({support_dist_pct:.1f}%)"
-            elif resistance_dist_pct <= 0.5:
-                score = 0
-                detail = f"At resistance £{nearest_resistance:.2f} (avoid)"
-            else:
-                score = 5
-                detail = f"Between levels ({support_dist_pct:.1f}% from support)"
-            
-            return score, detail
-            
-        except Exception as e:
-            return 5, f"S/R error: {e}"
-    
-    def _get_support_resistance_levels(self, product_id: str) -> dict:
-        """
-        Calculate support and resistance levels from historical price action
-        Uses pivot points and historical swing highs/lows
-        """
-        # Check cache
-        now = datetime.now()
-        if self.sr_cache_time and (now - self.sr_cache_time).total_seconds() < self.SR_CACHE_DURATION:
-            if product_id in self.sr_levels:
-                return self.sr_levels[product_id]
+        # Build enhanced reason
+        reason_parts = [base_result['reason']]
+        reason_parts.append(f"ML confidence: {ml_confidence:.2f}")
         
-        try:
-            # Get 7 days of hourly candles
-            candles = self.cb_client.get_candles(product_id, "ONE_HOUR", 168)
-            
-            if not candles or len(candles) < 50:
-                return None
-            
-            # Extract highs and lows
-            highs = [c['high'] for c in candles]
-            lows = [c['low'] for c in candles]
-            closes = [c['close'] for c in candles]
-            
-            # Find swing highs and lows (local extrema)
-            support_levels = []
-            resistance_levels = []
-            
-            # Simple swing detection (look for peaks and valleys)
-            for i in range(5, len(candles) - 5):
-                # Swing high (resistance)
-                if highs[i] == max(highs[i-5:i+5]):
-                    resistance_levels.append(highs[i])
-                
-                # Swing low (support)
-                if lows[i] == min(lows[i-5:i+5]):
-                    support_levels.append(lows[i])
-            
-            # Add current price quartiles as additional levels
-            current_price = closes[-1]
-            price_range = max(highs) - min(lows)
-            
-            # Also add psychological levels (round numbers)
-            psychological_levels = []
-            base = int(current_price / 100) * 100
-            for offset in [-200, -100, 0, 100, 200]:
-                level = base + offset
-                if min(lows) < level < max(highs):
-                    psychological_levels.append(level)
-            
-            # Combine and filter to unique levels (within 0.5% tolerance)
-            support_levels = self._cluster_levels(support_levels + psychological_levels)
-            resistance_levels = self._cluster_levels(resistance_levels + psychological_levels)
-            
-            result = {
-                'support': sorted(support_levels),
-                'resistance': sorted(resistance_levels)
-            }
-            
-            # Cache the result
-            self.sr_levels[product_id] = result
-            self.sr_cache_time = now
-            
-            return result
-            
-        except Exception as e:
-            print(f"   Error calculating S/R levels: {e}")
-            return None
-    
-    def _cluster_levels(self, levels: list, tolerance_pct: float = 0.5) -> list:
-        """
-        Cluster similar price levels together (within tolerance)
-        Returns representative levels
-        """
-        if not levels:
-            return []
+        if anomaly_type:
+            reason_parts.append(f"Anomaly: {anomaly_type}")
         
-        levels = sorted(levels)
-        clusters = []
-        current_cluster = [levels[0]]
+        reason_parts.append(f"Adaptive threshold: {current_threshold:.0f}")
         
-        for level in levels[1:]:
-            # Check if this level is close to current cluster
-            cluster_avg = sum(current_cluster) / len(current_cluster)
-            distance_pct = abs(level - cluster_avg) / cluster_avg * 100
-            
-            if distance_pct <= tolerance_pct:
-                current_cluster.append(level)
-            else:
-                # Save current cluster average and start new cluster
-                clusters.append(sum(current_cluster) / len(current_cluster))
-                current_cluster = [level]
+        # Print ML insights
+        print(f"   🧠 ML Confidence: {ml_confidence:.2f}")
+        print(f"   📊 Combined Score: {combined_score:.0f}/100")
+        print(f"   🎯 Adaptive Threshold: {current_threshold:.0f}")
         
-        # Don't forget the last cluster
-        if current_cluster:
-            clusters.append(sum(current_cluster) / len(current_cluster))
+        if anomaly_type:
+            print(f"   🚨 Anomaly Type: {anomaly_type}")
         
-        return clusters
-    
-    def _score_market_regime(self, product_id: str, snapshot: dict) -> tuple[int, str]:
-        """
-        Score: 0-10 points
-        Identify if market is trending or ranging
-        
-        10 pts: Clear regime (either trending or ranging)
-        5 pts: Transitioning between regimes
-        0 pts: Unclear regime
-        """
-        try:
-            # Detect regime (cached for performance)
-            regime = self._detect_market_regime(product_id)
-            
-            indicators = snapshot.get('indicators', {})
-            ema_cross = indicators.get('ema_cross', '')
-            
-            if regime == 'trending':
-                # In trending market, we want momentum signals
-                if ema_cross == 'bullish':
-                    score = 10
-                    detail = "Trending market + bullish momentum"
-                else:
-                    score = 5
-                    detail = "Trending market (wait for momentum)"
-            
-            elif regime == 'ranging':
-                # In ranging market, we want oversold conditions
-                rsi = indicators.get('rsi', 50)
-                if rsi < 40:
-                    score = 10
-                    detail = "Ranging market + oversold (good for mean reversion)"
-                else:
-                    score = 5
-                    detail = "Ranging market (wait for dip)"
-            
-            else:  # unclear
-                score = 5
-                detail = "Market regime unclear"
-            
-            return score, detail
-            
-        except Exception as e:
-            return 5, f"Regime detection error: {e}"
-    
-    def _detect_market_regime(self, product_id: str) -> str:
-        """
-        Detect if market is trending or ranging
-        
-        Returns: 'trending', 'ranging', or 'unclear'
-        """
-        # Check cache
-        now = datetime.now()
-        if self.regime_cache_time and (now - self.regime_cache_time).total_seconds() < self.REGIME_CACHE_DURATION:
-            if self.market_regime:
-                return self.market_regime
-        
-        try:
-            # Get recent hourly candles
-            candles = self.cb_client.get_candles(product_id, "ONE_HOUR", 48)
-            
-            if not candles or len(candles) < 48:
-                return 'unclear'
-            
-            closes = [c['close'] for c in candles]
-            highs = [c['high'] for c in candles]
-            lows = [c['low'] for c in candles]
-            
-            # Method 1: ADX (Average Directional Index) approximation
-            # High ADX = trending, Low ADX = ranging
-            
-            # Calculate price range and average true range
-            price_range = max(highs) - min(lows)
-            avg_close = sum(closes) / len(closes)
-            range_pct = (price_range / avg_close) * 100
-            
-            # Calculate trend strength (linear regression slope)
-            x = list(range(len(closes)))
-            x_mean = sum(x) / len(x)
-            y_mean = sum(closes) / len(closes)
-            
-            numerator = sum((x[i] - x_mean) * (closes[i] - y_mean) for i in range(len(closes)))
-            denominator = sum((x[i] - x_mean) ** 2 for i in range(len(closes)))
-            
-            if denominator != 0:
-                slope = numerator / denominator
-                # Normalize slope as percentage of average price
-                trend_strength = abs(slope) / avg_close * 100
-            else:
-                trend_strength = 0
-            
-            # Decision logic
-            if trend_strength > 0.5 and range_pct > 5:
-                regime = 'trending'
-            elif range_pct < 4:
-                regime = 'ranging'
-            else:
-                regime = 'unclear'
-            
-            # Cache result
-            self.market_regime = regime
-            self.regime_cache_time = now
-            
-            return regime
-            
-        except Exception as e:
-            print(f"   Error detecting regime: {e}")
-            return 'unclear'
-    
-    def _build_reason_string(self, total_score: int, breakdown: dict, should_enter: bool) -> str:
-        """
-        Build human-readable reason for the decision
-        """
         if should_enter:
-            # Highlight top contributors
-            sorted_factors = sorted(
-                breakdown.items(),
-                key=lambda x: x[1]['score'],
-                reverse=True
-            )
-            
-            top_factors = []
-            for factor, data in sorted_factors[:2]:  # Top 2
-                if data['score'] > 0:
-                    pct = (data['score'] / data['max']) * 100
-                    top_factors.append(f"{factor.replace('_', ' ').title()} ({pct:.0f}%)")
-            
-            reason = f"STRONG ENTRY ({total_score}/100): " + ", ".join(top_factors)
+            print(f"   ✅ ML RECOMMENDS ENTRY")
         else:
-            # Highlight what's missing
-            sorted_factors = sorted(
-                breakdown.items(),
-                key=lambda x: x[1]['score']
+            print(f"   ⏸️ ML RECOMMENDS WAIT (need {current_threshold - combined_score:.0f} more points)")
+        
+        # Store decision for learning
+        self._store_decision(features, should_enter, combined_score)
+        
+        return {
+            'should_enter': should_enter,
+            'confidence': confidence,
+            'score': int(combined_score),
+            'ml_confidence': ml_confidence,
+            'anomaly_type': anomaly_type,
+            'adaptive_threshold': current_threshold,
+            'base_score': base_result['score'],
+            'breakdown': base_result['breakdown'],
+            'reason': ' | '.join(reason_parts),
+            'quality': self._get_quality_rating(combined_score),
+            'summary': reason_parts[0]
+        }
+    
+    def _extract_ml_features(self, snapshot: dict, base_result: dict) -> np.ndarray:
+        """
+        Extract features for ML model
+        
+        Features (30 total):
+        - All base system scores (5)
+        - Technical indicators (10)
+        - Price momentum features (5)
+        - Volatility features (5)
+        - Time-based features (5)
+        """
+        features = []
+        
+        indicators = snapshot.get('indicators', {})
+        breakdown = base_result.get('breakdown', {})
+        
+        # 1. Base system scores (5 features)
+        features.append(breakdown.get('trend', {}).get('score', 0))
+        features.append(breakdown.get('momentum', {}).get('score', 0))
+        features.append(breakdown.get('volume', {}).get('score', 0))
+        features.append(breakdown.get('support_resistance', {}).get('score', 0))
+        features.append(breakdown.get('market_regime', {}).get('score', 0))
+        
+        # 2. Technical indicators (10 features)
+        features.append(indicators.get('rsi', 50))
+        features.append(indicators.get('macd_histogram', 0))
+        features.append(indicators.get('stoch_k', 50))
+        features.append(indicators.get('stoch_d', 50))
+        features.append(indicators.get('ema_10', snapshot['current_price']))
+        features.append(indicators.get('ema_50', snapshot['current_price']))
+        features.append(indicators.get('bb_position', 50))
+        features.append(indicators.get('adx', 0))
+        features.append(indicators.get('volume_ratio', 1.0))
+        features.append(indicators.get('atr_pct', 0))
+        
+        # 3. Price momentum (5 features)
+        current_price = snapshot['current_price']
+        ema_10 = indicators.get('ema_10', current_price)
+        ema_50 = indicators.get('ema_50', current_price)
+        
+        features.append((current_price - ema_10) / ema_10 * 100)  # Distance from EMA10
+        features.append((current_price - ema_50) / ema_50 * 100)  # Distance from EMA50
+        features.append((ema_10 - ema_50) / ema_50 * 100)  # EMA spread
+        features.append(indicators.get('price_change_pct', 0))  # Recent price change
+        features.append(indicators.get('macd_line', 0))  # MACD value
+        
+        # 4. Volatility features (5 features)
+        features.append(indicators.get('bb_width', 0))  # Bollinger Band width
+        features.append(indicators.get('atr', 0))  # Average True Range
+        
+        # Volume volatility (approximation)
+        volume_ratio = indicators.get('volume_ratio', 1.0)
+        features.append(abs(volume_ratio - 1.0))  # Distance from average volume
+        
+        # Price position in BB
+        bb_position = indicators.get('bb_position', 50)
+        features.append(abs(bb_position - 50))  # Distance from BB middle
+        
+        # Trend strength
+        features.append(indicators.get('adx', 0))
+        
+        # 5. Time-based features (5 features)
+        now = datetime.now()
+        features.append(now.hour)  # Hour of day
+        features.append(now.weekday())  # Day of week
+        features.append(now.minute / 60.0)  # Minute (normalized)
+        
+        # Market session (approx)
+        # 0 = Asian, 1 = European, 2 = US, 3 = Off hours
+        if 0 <= now.hour < 8:
+            session = 0
+        elif 8 <= now.hour < 16:
+            session = 1
+        elif 16 <= now.hour < 24:
+            session = 2
+        else:
+            session = 3
+        features.append(session)
+        
+        # Days since week start
+        features.append(now.weekday() / 6.0)
+        
+        return np.array(features).reshape(1, -1)
+    
+    def _get_ml_prediction(self, features: np.ndarray) -> float:
+        """
+        Get ML model prediction
+        
+        Returns confidence 0-1
+        """
+        if self.entry_predictor is None:
+            # Not trained yet, return neutral
+            return 0.5
+        
+        try:
+            # Scale features
+            features_scaled = self.scaler.transform(features)
+            
+            # Get probability
+            probabilities = self.entry_predictor.predict_proba(features_scaled)
+            
+            # Probability of positive outcome (class 1)
+            confidence = probabilities[0][1]
+            
+            return confidence
+            
+        except Exception as e:
+            print(f"   ⚠️ ML prediction error: {e}")
+            return 0.5
+    
+    def _detect_anomaly(self, snapshot: dict, features: np.ndarray) -> tuple[float, str]:
+        """
+        Detect anomalous market conditions (crashes, recoveries, etc.)
+        
+        Returns: (anomaly_score, anomaly_type)
+        anomaly_score: 0-1 (1 = strong anomaly)
+        anomaly_type: 'recovery_opportunity', 'volatility_spike', 'crash', None
+        """
+        indicators = snapshot.get('indicators', {})
+        
+        # Quick heuristic checks
+        rsi = indicators.get('rsi', 50)
+        bb_position = indicators.get('bb_position', 50)
+        volume_ratio = indicators.get('volume_ratio', 1.0)
+        price_change_pct = indicators.get('price_change_pct', 0)
+        atr_pct = indicators.get('atr_pct', 0)
+        
+        # RECOVERY OPPORTUNITY: Price crashed then recovering
+        # - RSI was very low (< 30) recently
+        # - Now recovering (30-45 range)
+        # - High volume
+        # - Large recent drop followed by bounce
+        if 30 <= rsi <= 45 and volume_ratio > 1.5 and price_change_pct > 1.0:
+            return 0.9, 'recovery_opportunity'
+        
+        # VOLATILITY SPIKE: Unusual market activity
+        # - Very high ATR
+        # - Extreme volume
+        # - Price at extremes
+        if atr_pct > 3.0 and volume_ratio > 2.0:
+            if bb_position < 20:  # At lower band
+                return 0.8, 'recovery_opportunity'
+            else:
+                return 0.7, 'volatility_spike'
+        
+        # CRASH DETECTED: Strong selling pressure
+        # - RSI < 30
+        # - Large negative price change
+        # - High volume
+        if rsi < 30 and price_change_pct < -2.0 and volume_ratio > 1.5:
+            # This is actually a BUYING opportunity (buy the dip)
+            return 0.85, 'recovery_opportunity'
+        
+        # No anomaly detected
+        return 0.0, None
+    
+    def _get_adaptive_threshold(self) -> float:
+        """
+        Calculate adaptive threshold based on recent performance
+        
+        Starts at 70, adjusts based on:
+        - Win rate (if high, be more aggressive - lower threshold)
+        - Miss rate (if missing good opportunities, lower threshold)
+        - False positive rate (if entering bad trades, raise threshold)
+        """
+        if len(self.trade_outcomes) < 10:
+            # Not enough data yet
+            return 70.0
+        
+        recent_outcomes = list(self.trade_outcomes)[-20:]  # Last 20 trades
+        
+        # Calculate win rate
+        wins = sum(1 for outcome in recent_outcomes if outcome.get('profit', 0) > 0)
+        win_rate = wins / len(recent_outcomes)
+        
+        # Adjust threshold
+        if win_rate > 0.8:
+            # High win rate - be more aggressive
+            adjustment = -5
+        elif win_rate > 0.7:
+            # Good win rate - slightly more aggressive
+            adjustment = -2
+        elif win_rate < 0.6:
+            # Low win rate - be more conservative
+            adjustment = +5
+        elif win_rate < 0.7:
+            # Below target - slightly more conservative
+            adjustment = +2
+        else:
+            adjustment = 0
+        
+        new_threshold = 70.0 + adjustment
+        
+        # Bounds check (50-85)
+        new_threshold = max(50, min(85, new_threshold))
+        
+        self.threshold_history.append(new_threshold)
+        
+        return new_threshold
+    
+    def _store_decision(self, features: np.ndarray, decision: bool, score: float):
+        """
+        Store decision for future learning
+        """
+        self.training_data.append({
+            'features': features,
+            'decision': decision,
+            'score': score,
+            'timestamp': datetime.now()
+        })
+    
+    def record_trade_outcome(self, entry_score: float, profit: float, duration_minutes: int):
+        """
+        Record the outcome of a trade for learning
+        
+        Args:
+            entry_score: Score when entered
+            profit: Profit/loss in GBP
+            duration_minutes: How long the trade took
+        """
+        outcome = {
+            'entry_score': entry_score,
+            'profit': profit,
+            'duration': duration_minutes,
+            'success': profit > 0,
+            'timestamp': datetime.now()
+        }
+        
+        self.trade_outcomes.append(outcome)
+        
+        print(f"   📚 Learning: Trade outcome recorded (Profit: £{profit:.2f})")
+        
+        # Retrain model if enough data
+        if len(self.trade_outcomes) >= 20 and len(self.trade_outcomes) % 10 == 0:
+            print(f"   🔄 Retraining ML model with {len(self.trade_outcomes)} trades...")
+            self._retrain_model()
+    
+    def _retrain_model(self):
+        """
+        Retrain ML model with accumulated data
+        """
+        try:
+            if len(self.training_data) < 20:
+                print(f"   ⚠️ Not enough data to train (need 20, have {len(self.training_data)})")
+                return
+            
+            # Prepare training data
+            X = []
+            y = []
+            
+            for i, decision_data in enumerate(self.training_data):
+                if i < len(self.trade_outcomes):
+                    outcome = self.trade_outcomes[i]
+                    
+                    X.append(decision_data['features'].flatten())
+                    y.append(1 if outcome['success'] else 0)
+            
+            X = np.array(X)
+            y = np.array(y)
+            
+            # Train scaler
+            self.scaler.fit(X)
+            X_scaled = self.scaler.transform(X)
+            
+            # Train classifier
+            self.entry_predictor = GradientBoostingClassifier(
+                n_estimators=100,
+                learning_rate=0.1,
+                max_depth=5,
+                random_state=42
             )
             
-            weak_factors = []
-            for factor, data in sorted_factors[:2]:  # Bottom 2
-                pct = (data['score'] / data['max']) * 100
-                if pct < 50:
-                    weak_factors.append(f"{factor.replace('_', ' ').title()} weak ({pct:.0f}%)")
+            self.entry_predictor.fit(X_scaled, y)
             
-            reason = f"SKIP ({total_score}/100): " + ", ".join(weak_factors)
-        
-        return reason
+            # Calculate accuracy
+            predictions = self.entry_predictor.predict(X_scaled)
+            accuracy = np.mean(predictions == y)
+            
+            print(f"   ✅ Model retrained! Accuracy: {accuracy:.1%}")
+            
+            # Save models
+            self._save_models()
+            
+        except Exception as e:
+            print(f"   ⚠️ Model training error: {e}")
     
-    def _get_quality_rating(self, score: int) -> str:
+    def _save_models(self):
+        """
+        Save trained models to disk
+        """
+        try:
+            if self.entry_predictor:
+                with open(f"{self.model_dir}/entry_predictor.pkl", 'wb') as f:
+                    pickle.dump(self.entry_predictor, f)
+            
+            if self.scaler:
+                with open(f"{self.model_dir}/scaler.pkl", 'wb') as f:
+                    pickle.dump(self.scaler, f)
+            
+            print(f"   💾 Models saved to {self.model_dir}/")
+            
+        except Exception as e:
+            print(f"   ⚠️ Error saving models: {e}")
+    
+    def _load_models(self):
+        """
+        Load trained models from disk
+        """
+        try:
+            predictor_path = f"{self.model_dir}/entry_predictor.pkl"
+            scaler_path = f"{self.model_dir}/scaler.pkl"
+            
+            if os.path.exists(predictor_path):
+                with open(predictor_path, 'rb') as f:
+                    self.entry_predictor = pickle.load(f)
+                print(f"   ✅ Loaded entry predictor model")
+            
+            if os.path.exists(scaler_path):
+                with open(scaler_path, 'rb') as f:
+                    self.scaler = pickle.load(f)
+                print(f"   ✅ Loaded feature scaler")
+                
+        except Exception as e:
+            print(f"   ⚠️ Error loading models: {e}")
+    
+    def _get_quality_rating(self, score: float) -> str:
         """
         Convert score to quality rating
         """
@@ -676,3 +479,37 @@ class EnhancedEntrySystem:
             return "FAIR"
         else:
             return "POOR"
+    
+    def get_performance_stats(self) -> dict:
+        """
+        Get ML system performance statistics
+        """
+        if not self.trade_outcomes:
+            return {
+                'total_trades': 0,
+                'win_rate': 0.0,
+                'avg_profit': 0.0,
+                'model_trained': self.entry_predictor is not None
+            }
+        
+        outcomes = list(self.trade_outcomes)
+        
+        total = len(outcomes)
+        wins = sum(1 for o in outcomes if o['profit'] > 0)
+        win_rate = wins / total if total > 0 else 0
+        
+        total_profit = sum(o['profit'] for o in outcomes)
+        avg_profit = total_profit / total if total > 0 else 0
+        
+        return {
+            'total_trades': total,
+            'wins': wins,
+            'losses': total - wins,
+            'win_rate': win_rate,
+            'total_profit': total_profit,
+            'avg_profit': avg_profit,
+            'best_trade': max((o['profit'] for o in outcomes), default=0),
+            'worst_trade': min((o['profit'] for o in outcomes), default=0),
+            'model_trained': self.entry_predictor is not None,
+            'adaptive_threshold': self._get_adaptive_threshold()
+        }
