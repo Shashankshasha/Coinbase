@@ -129,7 +129,13 @@ STOP_LOSS_PCT = 0.010       # 0.5% stop loss (MUCH TIGHTER!)
 MAX_POSITION_SIZE = 10000    # Maximum position size
 MIN_CONFIDENCE = 0.70      # 65% minimum confidence for trades
 
-COOLDOWN_MINUTES = 3         # Wait 3 minutes between trade checks
+# ============================================================================
+# DYNAMIC INTERVAL SETTINGS
+# ============================================================================
+# The bot adjusts check frequency based on whether you have an open position
+SCAN_INTERVAL_MINUTES = 3    # When no position (scanning for entries)
+MONITOR_INTERVAL_MINUTES = 1 # When position open (monitoring for exit)
+# This ensures fast profit capture and tight trailing stop execution!
 
 # ============================================================================
 # TECHNICAL INDICATORS
