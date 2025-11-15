@@ -32,18 +32,15 @@ TRADING_MODE = "live"  # LIVE TRADING - Real money on Coinbase
 TRADING_PAIR = "BTC-GBP"  # BITCOIN trading
 
 # ============================================================================
-# INVESTMENT & CAPITAL - MULTI-BOT CONFIGURATION
+# INVESTMENT & CAPITAL - INDEPENDENT BOT
 # ============================================================================
 
-# RECOMMENDED: If running 3 bots simultaneously (BTC, ETC, SOL)
-# Split £1000 total capital: BTC £333 + ETC £333 + SOL £334 = £1000
-# This bot (BTC-GBP): £333
+# This is an INDEPENDENT bot with full £1000 allocation
+# Run this bot separately from the other bots (ETC-GBP, SOL-GBP)
+# Each bot has its own £1000 capital - use at different times or with separate funds
 
-# ALTERNATIVE: If running single bot or have more capital
-# Use full £1000 allocation per bot (change to 1000.00 / 995.00)
-
-INITIAL_CAPITAL = 333.00  # BTC bot allocation (£1000 ÷ 3 bots)
-TRADE_AMOUNT_GBP = 328.00  # £333 minus £5 buffer for fees/safety
+INITIAL_CAPITAL = 1000.00  # BTC bot - full £1000 allocation
+TRADE_AMOUNT_GBP = 995.00  # £1000 minus £5 buffer for fees/safety
 
 # ============================================================================
 # FEE STRUCTURE
