@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.pool import NullPool
 from datetime import datetime
 import os
 import time
@@ -54,15 +55,31 @@ class TradingDatabase:
     def __init__(self, db_path: str = "trading_bot.db"):
         """
         Initialize database connection.
-        
+
+        THREAD-SAFE: Uses scoped_session for multi-threaded access
+
         Args:
             db_path: Path to SQLite database file
         """
         self.db_path = db_path
-        self.engine = create_engine(f'sqlite:///{db_path}')
+
+        # Create engine with thread-safe settings for SQLite
+        # - check_same_thread=False: Allow access from multiple threads
+        # - NullPool: Don't pool connections (each thread gets its own)
+        self.engine = create_engine(
+            f'sqlite:///{db_path}',
+            connect_args={'check_same_thread': False},
+            poolclass=NullPool,
+            echo=False
+        )
+
         Base.metadata.create_all(self.engine)
-        Session = sessionmaker(bind=self.engine)
-        self.session = Session()
+
+        # Use scoped_session for thread-local sessions
+        # Each thread will get its own session automatically
+        session_factory = sessionmaker(bind=self.engine)
+        self.Session = scoped_session(session_factory)
+        self.session = self.Session()
     
     def record_trade(
         self,
@@ -206,8 +223,18 @@ class TradingDatabase:
             'avg_loss': sum(t.profit_loss for t in losing_trades) / len(losing_trades) if losing_trades else 0
         }
     
+    def get_session(self):
+        """
+        Get or create a thread-local session.
+
+        Returns:
+            Session: Thread-local SQLAlchemy session
+        """
+        return self.Session()
+
     def close(self):
         """
-        Close database connection.
+        Close database connection and remove scoped session.
         """
-        self.session.close()
+        self.Session.remove()  # Remove thread-local session
+        self.engine.dispose()  # Close all connections
