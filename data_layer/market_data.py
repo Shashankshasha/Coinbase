@@ -26,7 +26,7 @@ class MarketData:
         
         print(f"\n📊 Fetching market data for {product_id}...")
         
-        # Extract crypto symbol (e.g., "SOL-GBP" -> "SOL")
+        # Extract crypto symbol (e.g., "BTC-GBP" -> "BTC")
         crypto_symbol = product_id.split('-')[0]
         
         # Get current price

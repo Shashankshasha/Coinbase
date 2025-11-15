@@ -12,11 +12,27 @@ class CoinbaseClient:
     def __init__(self):
         # CRITICAL FIX: Handle newline encoding in private key
         api_secret = COINBASE_API_SECRET
-        
+
+        # Check if credentials are provided
+        if not COINBASE_API_KEY or not COINBASE_API_SECRET:
+            print("=" * 70)
+            print("❌ MISSING COINBASE API CREDENTIALS")
+            print("=" * 70)
+            print("\nYour .env file is missing API credentials!")
+            print("\nTo fix this:")
+            print("1. Go to Coinbase Developer Portal: https://portal.cdp.coinbase.com/")
+            print("2. Create a new API key (Cloud API)")
+            print("3. Add to your .env file:")
+            print("   COINBASE_API_KEY=organizations/your-org-id/apiKeys/your-key-id")
+            print("   COINBASE_API_SECRET=-----BEGIN EC PRIVATE KEY-----\\n...\\n-----END EC PRIVATE KEY-----")
+            print("\n⚠️  Note: Use double quotes and \\\\n for newlines in the private key")
+            print("=" * 70)
+            raise ValueError("Missing COINBASE_API_KEY or COINBASE_API_SECRET in .env file")
+
         # Convert literal \n to actual newlines if needed
         if api_secret and '\\n' in api_secret:
             api_secret = api_secret.replace('\\n', '\n')
-        
+
         # For Cloud API keys, we need to initialize differently
         # The SDK handles JWT generation internally when given proper credentials
         try:
@@ -24,6 +40,7 @@ class CoinbaseClient:
                 api_key=COINBASE_API_KEY,
                 api_secret=api_secret
             )
+            print("✅ Coinbase API client initialized successfully")
         except Exception as e:
             print(f"❌ Error initializing Coinbase client: {e}")
             print("Make sure you have:")
@@ -59,19 +76,25 @@ class CoinbaseClient:
                     return None
             except Exception as e:
                 # Don't retry on other errors (auth, validation, etc)
-                print(f"❌ Error: {e}")
+                error_msg = str(e).lower()
+                if 'unauthenticated' in error_msg or 'authentication' in error_msg or 'unauthorized' in error_msg:
+                    print(f"❌ Authentication Error: {e}")
+                    print("⚠️  Check your API credentials in the .env file")
+                    print("   Make sure COINBASE_API_KEY and COINBASE_API_SECRET are correct")
+                else:
+                    print(f"❌ Error: {e}")
                 return None
     
-    def get_current_price(self, product_id: str = "SOL-GBP") -> dict:
+    def get_current_price(self, product_id: str = "BTC-GBP") -> dict:
         """
         Get current spot price for a trading pair.
         WITH AUTOMATIC RETRY on connection errors
-        
+
         Args:
-            product_id: Trading pair (e.g., 'SOL-GBP', 'BTC-USD')
-            
+            product_id: Trading pair (e.g., 'BTC-GBP', 'SOL-GBP', 'ETH-GBP')
+
         Returns:
-            dict: {"price": 2345.67, "product_id": "SOL-GBP"}
+            dict: {"price": 2345.67, "product_id": "BTC-GBP"}
         """
         def _fetch():
             ticker = self.client.get_product(product_id)
@@ -83,7 +106,7 @@ class CoinbaseClient:
         
         return self._retry_request(_fetch)
     
-    def get_candles(self, product_id: str = "SOL-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
+    def get_candles(self, product_id: str = "BTC-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
         """
         Get historical candle data.
         WITH AUTOMATIC RETRY on connection errors
@@ -191,7 +214,7 @@ class CoinbaseClient:
         result = self._retry_request(_fetch)
         return result if result is not None else {}
     
-    def get_product_info(self, product_id: str = "SOL-GBP") -> dict:
+    def get_product_info(self, product_id: str = "BTC-GBP") -> dict:
         """
         Get detailed product information including fees.
         WITH AUTOMATIC RETRY on connection errors

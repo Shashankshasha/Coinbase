@@ -6,7 +6,7 @@ from tracking.trade_logger import TradeLogger
 # Initialize market data client
 market = MarketData()
 
-def get_market_analysis(product_id: str = "SOL-GBP") -> dict:
+def get_market_analysis(product_id: str = "BTC-GBP") -> dict:
     """
     Get complete market analysis with real data from Coinbase.
     Includes price, indicators, signals, and recent candles.
@@ -30,7 +30,7 @@ def get_market_analysis(product_id: str = "SOL-GBP") -> dict:
         return {"error": f"Error fetching market data: {str(e)}"}
 
 
-def get_current_price(symbol: str = "SOL-GBP") -> dict:
+def get_current_price(symbol: str = "BTC-GBP") -> dict:
     """
     Get current price for a trading pair.
     """
@@ -59,7 +59,7 @@ def get_account_balance() -> dict:
         return {"error": f"Error fetching balance: {str(e)}"}
 
 
-def analyze_trading_opportunity(product_id: str = "SOL-GBP", trade_amount: float = 100.0) -> dict:
+def analyze_trading_opportunity(product_id: str = "BTC-GBP", trade_amount: float = 100.0) -> dict:
     """
     Analyze if there's a good trading opportunity right now.
     Returns detailed analysis with recommendation.
@@ -101,7 +101,7 @@ logger = TradeLogger()
 
 def execute_trade_decision(
     action: str,
-    product_id: str = "SOL-GBP",
+    product_id: str = "BTC-GBP",
     confidence: float = 0.75,
     reasoning: str = "",
     trade_amount: float = 50.0
@@ -174,8 +174,8 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "product_id": {
                     "type": "string",
-                    "description": "The trading pair symbol, e.g., 'SOL-GBP', 'BTC-USD'",
-                    "default": "SOL-GBP"
+                    "description": "The trading pair symbol, e.g., 'BTC-GBP', 'SOL-GBP', 'ETH-GBP'",
+                    "default": "BTC-GBP"
                 }
             }
         }
@@ -188,8 +188,8 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "symbol": {
                     "type": "string",
-                    "description": "The trading pair symbol, e.g., 'SOL-GBP'",
-                    "default": "SOL-GBP"
+                    "description": "The trading pair symbol, e.g., 'BTC-GBP', 'SOL-GBP', 'ETH-GBP'",
+                    "default": "BTC-GBP"
                 }
             }
         }
@@ -210,8 +210,8 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "product_id": {
                     "type": "string",
-                    "description": "The trading pair to analyze, e.g., 'SOL-GBP'",
-                    "default": "SOL-GBP"
+                    "description": "The trading pair to analyze, e.g., 'BTC-GBP', 'SOL-GBP', 'ETH-GBP'",
+                    "default": "BTC-GBP"
                 },
                 "trade_amount": {
                     "type": "number",
@@ -234,8 +234,8 @@ TOOL_DEFINITIONS = [
                 },
                 "product_id": {
                     "type": "string",
-                    "description": "Trading pair, e.g., 'SOL-GBP'",
-                    "default": "SOL-GBP"
+                    "description": "Trading pair, e.g., 'BTC-GBP', 'SOL-GBP', 'ETH-GBP'",
+                    "default": "BTC-GBP"
                 },
                 "confidence": {
                     "type": "number",

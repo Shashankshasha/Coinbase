@@ -48,6 +48,17 @@ class EnhancedEntrySystem:
                 - should_enter: Boolean recommendation
                 - confidence: 0-1 confidence level
         """
+        # Handle None snapshot
+        if snapshot is None:
+            return {
+                'score': 0,
+                'breakdown': {},
+                'reason': 'No market data available - check API credentials',
+                'should_enter': False,
+                'confidence': 0.0,
+                'quality': 'CRITICAL_ERROR'
+            }
+
         indicators = snapshot.get('indicators', {})
         current_price = snapshot.get('current_price', 0)
 
