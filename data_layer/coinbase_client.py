@@ -85,16 +85,16 @@ class CoinbaseClient:
                     print(f"❌ Error: {e}")
                 return None
     
-    def get_current_price(self, product_id: str = "SOL-GBP") -> dict:
+    def get_current_price(self, product_id: str = "BTC-GBP") -> dict:
         """
         Get current spot price for a trading pair.
         WITH AUTOMATIC RETRY on connection errors
-        
+
         Args:
-            product_id: Trading pair (e.g., 'SOL-GBP', 'BTC-USD')
-            
+            product_id: Trading pair (e.g., 'BTC-GBP', 'SOL-GBP', 'ETH-GBP')
+
         Returns:
-            dict: {"price": 2345.67, "product_id": "SOL-GBP"}
+            dict: {"price": 2345.67, "product_id": "BTC-GBP"}
         """
         def _fetch():
             ticker = self.client.get_product(product_id)
@@ -106,7 +106,7 @@ class CoinbaseClient:
         
         return self._retry_request(_fetch)
     
-    def get_candles(self, product_id: str = "SOL-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
+    def get_candles(self, product_id: str = "BTC-GBP", granularity: str = "FIFTEEN_MINUTE", limit: int = 100) -> list:
         """
         Get historical candle data.
         WITH AUTOMATIC RETRY on connection errors
@@ -214,7 +214,7 @@ class CoinbaseClient:
         result = self._retry_request(_fetch)
         return result if result is not None else {}
     
-    def get_product_info(self, product_id: str = "SOL-GBP") -> dict:
+    def get_product_info(self, product_id: str = "BTC-GBP") -> dict:
         """
         Get detailed product information including fees.
         WITH AUTOMATIC RETRY on connection errors

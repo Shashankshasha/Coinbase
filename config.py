@@ -29,7 +29,7 @@ if COINBASE_API_SECRET and '\\n' in COINBASE_API_SECRET:
 # ============================================================================
 
 TRADING_MODE = "live"  # LIVE TRADING - Real money on Coinbase
-TRADING_PAIR = "SOL-GBP"
+TRADING_PAIR = "BTC-GBP"
 
 # ============================================================================
 # INVESTMENT & CAPITAL
