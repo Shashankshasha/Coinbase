@@ -61,43 +61,89 @@ class MLEnhancedEntrySystem:
     def analyze_entry_with_ml(self, snapshot: dict, product_id: str) -> dict:
         """
         Enhanced entry analysis with ML predictions
-        
+
         Returns same format as base system but with ML enhancements
+
+        FALLBACK STRATEGY:
+        - If ML fails, gracefully falls back to base system
+        - Logs errors for debugging
+        - Never blocks trading due to ML issues
         """
         print(f"\n🧠 Running ML-Enhanced Analysis...")
-        
-        # 1. Get base scoring
-        base_result = self.base_system.analyze_entry_opportunity(snapshot, product_id)
-        
-        # 2. Extract features for ML
-        features = self._extract_ml_features(snapshot, base_result)
-        
-        # 3. ML Prediction
-        ml_confidence = self._get_ml_prediction(features)
-        
-        # 4. Anomaly Detection (detect unusual opportunities)
-        anomaly_score, anomaly_type = self._detect_anomaly(snapshot, features)
-        
-        # 5. Adaptive Threshold
-        current_threshold = self._get_adaptive_threshold()
-        
-        # 6. Combined Decision
-        # Weighted combination: 60% base score + 40% ML prediction
-        combined_score = (base_result['score'] * 0.6) + (ml_confidence * 100 * 0.4)
-        
-        # Special case: If anomaly detected (crash recovery), lower threshold
-        if anomaly_type == 'recovery_opportunity':
-            print(f"   🚨 ANOMALY: Recovery opportunity detected!")
-            print(f"   📉 Threshold lowered: {current_threshold:.0f} → {current_threshold * 0.8:.0f}")
-            current_threshold *= 0.8  # 20% lower threshold
-            anomaly_boost = 15
-        elif anomaly_type == 'volatility_spike':
-            print(f"   ⚠️ ANOMALY: High volatility detected!")
-            anomaly_boost = 5
-        else:
-            anomaly_boost = 0
-        
-        combined_score += anomaly_boost
+
+        ml_failed = False
+        ml_confidence = 0.5  # Neutral default
+        anomaly_score = 0.0
+        anomaly_type = None
+
+        try:
+            # 1. Get base scoring (ALWAYS works)
+            base_result = self.base_system.analyze_entry_opportunity(snapshot, product_id)
+
+            # 2. Extract features for ML
+            try:
+                features = self._extract_ml_features(snapshot, base_result)
+            except Exception as e:
+                print(f"   ⚠️ Feature extraction error: {e}")
+                features = None
+                ml_failed = True
+
+            # 3. ML Prediction (with fallback)
+            if features is not None:
+                try:
+                    ml_confidence = self._get_ml_prediction(features)
+                except Exception as e:
+                    print(f"   ⚠️ ML prediction error: {e}")
+                    ml_confidence = 0.5  # Neutral
+                    ml_failed = True
+
+            # 4. Anomaly Detection (detect unusual opportunities)
+            try:
+                anomaly_score, anomaly_type = self._detect_anomaly(snapshot, features)
+            except Exception as e:
+                print(f"   ⚠️ Anomaly detection error: {e}")
+                anomaly_score = 0.0
+                anomaly_type = None
+
+            # 5. Adaptive Threshold (with fallback)
+            try:
+                current_threshold = self._get_adaptive_threshold()
+            except Exception as e:
+                print(f"   ⚠️ Threshold calculation error: {e}")
+                current_threshold = 70.0  # Default
+
+            # 6. Combined Decision
+            if ml_failed:
+                # FALLBACK: Use base score only
+                print(f"   ⚠️ ML unavailable - using base scoring only")
+                combined_score = base_result['score']
+            else:
+                # Weighted combination: 60% base score + 40% ML prediction
+                combined_score = (base_result['score'] * 0.6) + (ml_confidence * 100 * 0.4)
+
+            # Special case: If anomaly detected (crash recovery), lower threshold
+            if anomaly_type == 'recovery_opportunity':
+                print(f"   🚨 ANOMALY: Recovery opportunity detected!")
+                print(f"   📉 Threshold lowered: {current_threshold:.0f} → {current_threshold * 0.8:.0f}")
+                current_threshold *= 0.8  # 20% lower threshold
+                anomaly_boost = 15
+            elif anomaly_type == 'volatility_spike':
+                print(f"   ⚠️ ANOMALY: High volatility detected!")
+                anomaly_boost = 5
+            else:
+                anomaly_boost = 0
+
+            combined_score += anomaly_boost
+
+        except Exception as e:
+            # CRITICAL FALLBACK: If entire ML system fails, use base only
+            print(f"   ❌ CRITICAL: ML system error: {e}")
+            print(f"   🔄 Falling back to traditional analysis")
+            base_result = self.base_system.analyze_entry_opportunity(snapshot, product_id)
+            combined_score = base_result['score']
+            current_threshold = 70.0
+            ml_confidence = 0.5
+            ml_failed = True
         
         # Decision
         should_enter = combined_score >= current_threshold

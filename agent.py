@@ -1,7 +1,7 @@
 from llm_client import ClaudeClient
 from tools import TOOL_DEFINITIONS, TOOL_FUNCTIONS
-from enhanced_entry_system import EnhancedEntrySystem
-from ml_enhanced_entry_system import MLEnhancedEntrySystem
+from entry_analyzer import EnhancedEntrySystem
+from enhanced_entry_system import MLEnhancedEntrySystem
 from config import TRADING_PAIR, MIN_CONFIDENCE
 import json
 
