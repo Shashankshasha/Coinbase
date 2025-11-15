@@ -35,9 +35,9 @@ TRADING_PAIR = "BTC-GBP"
 # INVESTMENT & CAPITAL
 # ============================================================================
 
-# Update these values
-INITIAL_CAPITAL = 524.83
-TRADE_AMOUNT_GBP = 520.00  # Leave £5 buffer
+# Update these values to match your actual Coinbase account balance
+INITIAL_CAPITAL = 0.00  # UPDATE THIS: Set to your actual GBP balance in Coinbase
+TRADE_AMOUNT_GBP = 0.00  # UPDATE THIS: Set to INITIAL_CAPITAL minus £5 buffer
 
 # ============================================================================
 # FEE STRUCTURE
@@ -129,7 +129,13 @@ STOP_LOSS_PCT = 0.010       # 0.5% stop loss (MUCH TIGHTER!)
 MAX_POSITION_SIZE = 10000    # Maximum position size
 MIN_CONFIDENCE = 0.70      # 65% minimum confidence for trades
 
-COOLDOWN_MINUTES = 3         # Wait 3 minutes between trade checks
+# ============================================================================
+# DYNAMIC INTERVAL SETTINGS
+# ============================================================================
+# The bot adjusts check frequency based on whether you have an open position
+SCAN_INTERVAL_MINUTES = 3    # When no position (scanning for entries)
+MONITOR_INTERVAL_MINUTES = 1 # When position open (monitoring for exit)
+# This ensures fast profit capture and tight trailing stop execution!
 
 # ============================================================================
 # TECHNICAL INDICATORS

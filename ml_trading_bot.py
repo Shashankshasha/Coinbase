@@ -22,7 +22,8 @@ from config import (
     TRADING_PAIR,
     MAX_DAILY_TRADES,
     MIN_CONFIDENCE,
-    COOLDOWN_MINUTES,
+    SCAN_INTERVAL_MINUTES,
+    MONITOR_INTERVAL_MINUTES,
     MAX_CONSECUTIVE_LOSSES,
     MIN_CAPITAL_THRESHOLD
 )
@@ -60,6 +61,7 @@ class MLTradingBot:
         # Trading state
         self.consecutive_losses = 0
         self.last_trade_time = None
+        self.has_open_position = False  # Track if we have an active position
 
         # ML performance tracking
         self.session_ml_stats = {
@@ -68,6 +70,10 @@ class MLTradingBot:
             'anomaly_detected': 0,
             'threshold_adjustments': 0
         }
+
+        # Dynamic scheduling
+        self.scheduler = None
+        self.current_interval = SCAN_INTERVAL_MINUTES
 
         print("✅ ML-Enhanced Trading Bot Ready!")
         print("="*70 + "\n")
@@ -91,17 +97,21 @@ class MLTradingBot:
             if not self._check_safety_limits():
                 return False  # Stop trading for safety
 
-            # ==================== COOLDOWN CHECK ====================
-            if not self._check_cooldown():
-                return True  # Continue but skip this cycle
-
             # ==================== POSITION MANAGEMENT ====================
             exit_check = self.strategy.check_exit_conditions(self.product_id)
+
+            # Track position status for dynamic interval adjustment
+            had_position = self.has_open_position
+            self.has_open_position = exit_check['has_position']
 
             if exit_check['has_position']:
                 self._handle_position_exit(exit_check)
             else:
                 self._handle_entry_opportunity()
+
+            # Adjust check interval based on position status
+            if self.has_open_position != had_position:
+                self._adjust_interval()
 
             # Reset agent conversation for next cycle
             self.agent.reset()
@@ -165,25 +175,37 @@ class MLTradingBot:
         print(f"✅ All safety checks passed")
         return True
 
-    def _check_cooldown(self) -> bool:
+    def _adjust_interval(self):
         """
-        Check if enough time has passed since last trade.
+        Dynamically adjust check interval based on position status.
 
-        Returns:
-            bool: True if cooldown expired, False if still cooling
+        - No position (scanning): Every 3 minutes
+        - Position open (monitoring): Every 1 minute for fast exit detection
         """
-        if self.last_trade_time is None:
-            return True
+        if self.scheduler is None:
+            return
 
-        time_since_last = datetime.now() - self.last_trade_time
-        cooldown_period = timedelta(minutes=COOLDOWN_MINUTES)
+        if self.has_open_position:
+            new_interval = MONITOR_INTERVAL_MINUTES
+            mode = "MONITOR"
+            emoji = "👀"
+        else:
+            new_interval = SCAN_INTERVAL_MINUTES
+            mode = "SCAN"
+            emoji = "🔍"
 
-        if time_since_last < cooldown_period:
-            remaining = (cooldown_period - time_since_last).total_seconds() / 60
-            print(f"\n⏸️  Cooldown: {remaining:.1f} minutes remaining")
-            return False
+        if new_interval != self.current_interval:
+            self.current_interval = new_interval
 
-        return True
+            # Reschedule the job with new interval
+            self.scheduler.reschedule_job(
+                'trading_cycle',
+                trigger='interval',
+                minutes=new_interval
+            )
+
+            print(f"\n{emoji} INTERVAL ADJUSTED: {mode} mode - checking every {new_interval} minute(s)")
+            print(f"   {'Position monitoring active!' if self.has_open_position else 'Scanning for entry opportunities'}")
 
     def _handle_position_exit(self, exit_check: dict):
         """
@@ -283,20 +305,27 @@ class MLTradingBot:
             print(f"   ❌ Error in ML analysis: {e}")
             print(traceback.format_exc())
 
-    def run_continuous(self, interval_minutes: int = COOLDOWN_MINUTES):
+    def run_continuous(self):
         """
-        Run bot continuously with scheduled cycles.
+        Run bot continuously with DYNAMIC interval scheduling.
 
-        Args:
-            interval_minutes: Minutes between cycles (default from config)
+        Automatically adjusts check frequency:
+        - No position: Every 3 minutes (scanning for entries)
+        - Position open: Every 1 minute (monitoring for exits)
+
+        This ensures fast profit capture and tight trailing stop execution!
         """
-        from apscheduler.schedulers.blocking import BlockingScheduler
+        from apscheduler.schedulers.background import BackgroundScheduler
 
-        scheduler = BlockingScheduler()
-        scheduler.add_job(
+        # Create scheduler with background execution
+        self.scheduler = BackgroundScheduler()
+
+        # Add job with initial interval (scan mode)
+        self.scheduler.add_job(
             self.run_trading_cycle,
             'interval',
-            minutes=interval_minutes,
+            minutes=SCAN_INTERVAL_MINUTES,
+            id='trading_cycle',
             max_instances=1  # Prevent overlapping runs
         )
 
@@ -304,7 +333,8 @@ class MLTradingBot:
         print("🚀 ML-ENHANCED AUTOMATED TRADING BOT STARTED")
         print("="*70)
         print(f"Trading Pair: {self.product_id}")
-        print(f"Cycle Interval: Every {interval_minutes} minutes")
+        print(f"🔍 Scan Mode: Every {SCAN_INTERVAL_MINUTES} minutes (no position)")
+        print(f"👀 Monitor Mode: Every {MONITOR_INTERVAL_MINUTES} minute (position open)")
         print(f"Min Confidence: {MIN_CONFIDENCE:.0%}")
         print(f"Max Daily Trades: {MAX_DAILY_TRADES}")
         print(f"Max Consecutive Losses: {MAX_CONSECUTIVE_LOSSES}")
@@ -313,6 +343,9 @@ class MLTradingBot:
         print(f"   - Anomaly Detection (crash recovery)")
         print(f"   - Adaptive Threshold Learning")
         print(f"   - Continuous improvement from outcomes")
+        print(f"\n💡 Dynamic Intervals:")
+        print(f"   - Automatically switches to 1-min checks when trade is active")
+        print(f"   - Ensures fast profit capture and tight stop loss execution")
         print(f"\nPress Ctrl+C to stop")
         print("="*70 + "\n")
 
@@ -323,11 +356,16 @@ class MLTradingBot:
             print("\n⛔ Bot stopped due to safety limits")
             return
 
-        # Then schedule recurring
+        # Start background scheduler
+        self.scheduler.start()
+
+        # Keep main thread alive
         try:
-            scheduler.start()
+            while True:
+                time.sleep(1)
         except (KeyboardInterrupt, SystemExit):
             print("\n\n👋 Shutting down ML trading bot...")
+            self.scheduler.shutdown()
             self._print_session_summary()
 
     def _print_session_summary(self):
@@ -367,8 +405,8 @@ def main():
     """
     bot = MLTradingBot()
 
-    # Run with configured cooldown interval
-    bot.run_continuous(interval_minutes=COOLDOWN_MINUTES)
+    # Run with dynamic interval adjustment
+    bot.run_continuous()
 
 
 if __name__ == "__main__":
