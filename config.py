@@ -155,6 +155,7 @@ MACD_SIGNAL = 9              # MACD signal period
 MAX_DAILY_TRADES = 20        # Maximum 20 trades per day (realistic limit)
 MAX_CONSECUTIVE_LOSSES = 3   # Stop after 3 losses in a row (tighter safety)
 MIN_CAPITAL_THRESHOLD = 475.0  # Stop if capital drops below £475 (5% drawdown)
+COOLDOWN_MINUTES = 5         # Minimum minutes between trades (prevent overtrading)
 
 # ============================================================================
 # COMPOUNDING
