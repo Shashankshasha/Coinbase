@@ -69,6 +69,21 @@ class MLEnhancedEntrySystem:
         - Logs errors for debugging
         - Never blocks trading due to ML issues
         """
+        # Handle None snapshot early
+        if snapshot is None:
+            print(f"\n❌ CRITICAL: No market data available")
+            print(f"   Check your API credentials in .env file")
+            return {
+                'score': 0,
+                'ml_score': 0,
+                'base_score': 0,
+                'confidence': 0.0,
+                'should_enter': False,
+                'reason': 'No market data available - check API credentials',
+                'quality': 'CRITICAL_ERROR',
+                'ml_reasoning': 'Cannot analyze without market data'
+            }
+
         print(f"\n🧠 Running ML-Enhanced Analysis...")
 
         ml_failed = False
