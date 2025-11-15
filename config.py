@@ -29,15 +29,21 @@ if COINBASE_API_SECRET and '\\n' in COINBASE_API_SECRET:
 # ============================================================================
 
 TRADING_MODE = "live"  # LIVE TRADING - Real money on Coinbase
-TRADING_PAIR = "BTC-GBP"
+TRADING_PAIR = "BTC-GBP"  # BITCOIN trading
 
 # ============================================================================
-# INVESTMENT & CAPITAL
+# INVESTMENT & CAPITAL - MULTI-BOT CONFIGURATION
 # ============================================================================
 
-# Update these values to match your actual Coinbase account balance
-INITIAL_CAPITAL = 1000.00  # UPDATED: £1000 starting capital
-TRADE_AMOUNT_GBP = 995.00  # UPDATED: £1000 minus £5 buffer for fees/safety
+# RECOMMENDED: If running 3 bots simultaneously (BTC, ETC, SOL)
+# Split £1000 total capital: BTC £333 + ETC £333 + SOL £334 = £1000
+# This bot (BTC-GBP): £333
+
+# ALTERNATIVE: If running single bot or have more capital
+# Use full £1000 allocation per bot (change to 1000.00 / 995.00)
+
+INITIAL_CAPITAL = 333.00  # BTC bot allocation (£1000 ÷ 3 bots)
+TRADE_AMOUNT_GBP = 328.00  # £333 minus £5 buffer for fees/safety
 
 # ============================================================================
 # FEE STRUCTURE
