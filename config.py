@@ -36,8 +36,8 @@ TRADING_PAIR = "BTC-GBP"
 # ============================================================================
 
 # Update these values to match your actual Coinbase account balance
-INITIAL_CAPITAL = 0.00  # UPDATE THIS: Set to your actual GBP balance in Coinbase
-TRADE_AMOUNT_GBP = 0.00  # UPDATE THIS: Set to INITIAL_CAPITAL minus £5 buffer
+INITIAL_CAPITAL = 1000.00  # UPDATED: £1000 starting capital
+TRADE_AMOUNT_GBP = 995.00  # UPDATED: £1000 minus £5 buffer for fees/safety
 
 # ============================================================================
 # FEE STRUCTURE
