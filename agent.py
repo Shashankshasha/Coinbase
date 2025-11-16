@@ -119,17 +119,69 @@ Always be honest about uncertainty and limitations of analysis."""
     def run_auto_buy_with_ml(self, snapshot: dict) -> dict:
         """
         Automatic buy decision with ML enhancement.
-        
+
         This replaces the old run_auto_buy() method.
-        
+
         Returns:
             dict with decision, confidence, reasoning, and execution details
         """
         print(f"\n🤖 ML-ENHANCED AUTO-BUY SCAN\n")
-        
+
         # Get ML-enhanced analysis
         ml_result = self.ml_entry_system.analyze_entry_with_ml(snapshot, TRADING_PAIR)
-        
+
+        # Display ML analysis
+        print(f"\n🧠 Running ML-Enhanced Analysis...")
+        print(f"   🧠 ML Confidence: {ml_result['ml_confidence']:.2f}")
+        print(f"   📊 Combined Score: {ml_result['score']}/100")
+        print(f"   🎯 Adaptive Threshold: {ml_result['adaptive_threshold']:.0f}")
+
+        # ================================================================
+        # 💰 API COST OPTIMIZATION - Skip Claude call when clearly HOLD
+        # ================================================================
+        # Only call Claude API when there's a real decision to make:
+        # - ML recommends entry (score >= threshold), OR
+        # - Anomaly detected (potential opportunity), OR
+        # - Score is close to threshold (within 5 points)
+        # ================================================================
+
+        should_call_claude = (
+            ml_result['should_enter'] or  # ML says BUY
+            ml_result['anomaly_type'] is not None or  # Anomaly detected
+            (ml_result['score'] >= ml_result['adaptive_threshold'] - 5)  # Close to threshold
+        )
+
+        if not should_call_claude:
+            # ML clearly says HOLD - skip expensive API call
+            print(f"   ⏸️ ML RECOMMENDS WAIT (need {ml_result['adaptive_threshold'] - ml_result['score']:.0f} more points)")
+            print(f"\n⏸️  ML recommends HOLD")
+            print(f"   ML Score: {ml_result['score']}/100")
+            print(f"   Confidence: {ml_result['confidence']*100:.1f}%")
+            print(f"\n💰 API call skipped! Score {ml_result['score']} < threshold {ml_result['adaptive_threshold']:.0f}")
+
+            return {
+                'action': 'HOLD',
+                'executed': False,
+                'confidence': ml_result['confidence'],
+                'ml_score': ml_result['score'],
+                'reasoning': f"ML score ({ml_result['score']}/100) below threshold ({ml_result['adaptive_threshold']:.0f}). {ml_result['reason']}",
+                'ml_reasoning': ml_result['reason'],
+                'api_call_skipped': True
+            }
+
+        # ================================================================
+        # ML score is high or anomaly detected - worth asking Claude
+        # ================================================================
+        if ml_result['should_enter']:
+            print(f"   ✅ ML TRIGGERED BUY!")
+        else:
+            print(f"   ⚠️  ML MARGINAL (close to threshold or anomaly)")
+
+        print(f"   ML Score: {ml_result['score']}/100")
+        print(f"   Base Score: {ml_result['base_score']}/100")
+        print(f"   Confidence: {ml_result['confidence']*100:.1f}%")
+        print(f"\n🤖 Calling Claude API for final decision...")
+
         # Build prompt for Claude with ML insights
         ml_context = f"""
 ML-Enhanced Market Analysis for {TRADING_PAIR}:
@@ -175,9 +227,11 @@ If not recommended:
 
 Be decisive. This is automated trading.
 """
-        
+
         # Get Claude's decision with ML context
         claude_response = self.run(ml_context)
+
+        print(f"\n🧠 ML Insights: {ml_result['reason']}")
         
         # Parse decision
         if "EXECUTE BUY" in claude_response.upper():
