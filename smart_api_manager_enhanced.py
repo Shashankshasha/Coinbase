@@ -3,7 +3,7 @@ INTEGRATION: Enhanced Entry System → Beast Mode Bot
 This file shows how to integrate the multi-factor scoring into your existing bot
 """
 
-from enhanced_entry_system import EnhancedEntrySystem
+from enhanced_entry_system import MLEnhancedEntrySystem as EnhancedEntrySystem
 
 
 class SmartAPIManagerEnhanced:

@@ -1,7 +1,7 @@
 from tracking.trade_logger import TradeLogger
 from profit_strategy_enhanced import ProfitStrategyEnhanced
 from data_layer.market_data import MarketData
-from enhanced_entry_system import EnhancedEntrySystem
+from enhanced_entry_system import MLEnhancedEntrySystem as EnhancedEntrySystem
 from datetime import datetime
 from config import TRADING_PAIR, MIN_CONFIDENCE, PROFIT_TARGET_GBP, STOP_LOSS_PCT
 import time
