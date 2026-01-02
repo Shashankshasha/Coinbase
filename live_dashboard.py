@@ -49,7 +49,7 @@ def display_dashboard():
         print(f"\n🎯 ENTRY SCORE (Enhanced Multi-Factor Analysis)")
         print("-" * 80)
         
-        analysis = scorer.analyze_entry_opportunity(snapshot, TRADING_PAIR)
+        analysis = scorer.analyze_entry_with_ml(snapshot, TRADING_PAIR)
         
         score = analysis['score']
         quality = analysis['quality']

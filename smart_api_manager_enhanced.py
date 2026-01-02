@@ -52,7 +52,7 @@ class SmartAPIManagerEnhanced:
         
         print(f"\n🔍 Running Enhanced Entry Analysis...")
         
-        analysis = self.enhanced_entry.analyze_entry_opportunity(snapshot, product_id)
+        analysis = self.enhanced_entry.analyze_entry_with_ml(snapshot, product_id)
         
         # Print detailed breakdown (optional - comment out if too verbose)
         self._print_compact_analysis(analysis)
