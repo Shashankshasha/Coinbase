@@ -82,14 +82,23 @@ def display_dashboard():
         print(f"   [{bar}] 75% threshold")
         
         # Factor breakdown (compact)
-        breakdown = analysis['breakdown']
-        
+        breakdown = analysis.get('breakdown', {})
+
+        # Max values for each factor
+        max_values = {
+            'trend': 25,
+            'momentum': 25,
+            'volume': 15,
+            'support_resistance': 20,
+            'market_regime': 15
+        }
+
         print(f"\n   Factors:")
         for factor, data in breakdown.items():
-            score_val = data['score']
-            max_val = data['max']
+            score_val = data.get('score', 0)
+            max_val = max_values.get(factor, 20)
             pct = int((score_val / max_val) * 100) if max_val > 0 else 0
-            
+
             # Visual indicator
             if pct >= 80:
                 icon = "✅"
@@ -97,12 +106,12 @@ def display_dashboard():
                 icon = "⚠️"
             else:
                 icon = "❌"
-            
+
             # Compact bar (10 chars)
             mini_bar_len = 10
             mini_filled = int((pct / 100) * mini_bar_len)
             mini_bar = "█" * mini_filled + "░" * (mini_bar_len - mini_filled)
-            
+
             factor_name = factor.replace('_', ' ').title()[:20]
             print(f"   {icon} {factor_name:<20} [{mini_bar}] {score_val}/{max_val}")
         
