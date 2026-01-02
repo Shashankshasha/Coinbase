@@ -1,18 +1,23 @@
+# Core Dependencies
 anthropic
 python-dotenv
 coinbase-advanced-py
-pandas
-numpy
-# requestssqlalchemy
-# ML-Enhanced Trading Bot Requirements
-# Install with: pip install -r requirements_ml.txt --break-system-packages
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database
+sqlalchemy
 
 # Machine Learning
 scikit-learn>=1.3.0
-numpy>=1.24.0
-pandas>=2.0.0
+
+# Scheduling
 apscheduler>=3.10.0
 
-# Optional (for advanced features later)
-# tensorflow>=2.13.0  # For LSTM price prediction
-# xgboost>=2.0.0  # For better gradient boosting
+# Technical Analysis
+# NOTE: TA-Lib requires system library first:
+#   macOS: brew install ta-lib
+#   Ubuntu: sudo apt-get install libta-lib-dev
+TA-Lib
