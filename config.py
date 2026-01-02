@@ -28,8 +28,8 @@ if COINBASE_API_SECRET and '\\n' in COINBASE_API_SECRET:
 # TRADING SETTINGS
 # ============================================================================
 
-TRADING_MODE = "live"  # LIVE TRADING - Real money on Coinbase
-TRADING_PAIR = "ETC-GBP"
+TRADING_MODE = "paper"  # PAPER TRADING - Test mode, no real money
+TRADING_PAIR = "BTC-GBP"
 
 # ============================================================================
 # INVESTMENT & CAPITAL
