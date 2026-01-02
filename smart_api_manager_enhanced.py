@@ -3,13 +3,14 @@ INTEGRATION: Enhanced Entry System → Beast Mode Bot
 This file shows how to integrate the multi-factor scoring into your existing bot
 """
 
-from enhanced_entry_system import MLEnhancedEntrySystem as EnhancedEntrySystem
+from entry_analyzer import EnhancedEntrySystem
+from enhanced_entry_system import MLEnhancedEntrySystem
 
 
 class SmartAPIManagerEnhanced:
     """
     ENHANCED VERSION with Multi-Factor Scoring Algorithm
-    
+
     Changes from original:
     - Replaced simple pre-filter with 100-point scoring system
     - Added multi-timeframe trend analysis
@@ -17,7 +18,7 @@ class SmartAPIManagerEnhanced:
     - Added market regime detection
     - More accurate confidence scoring
     """
-    
+
     def __init__(self):
         # Keep all original attributes
         self.last_claude_call_time = None
@@ -25,9 +26,9 @@ class SmartAPIManagerEnhanced:
         self.cache_duration_seconds = 300
         self.calls_saved_today = 0
         self.calls_made_today = 0
-        
+
         # NEW: Enhanced entry system
-        self.enhanced_entry = EnhancedEntrySystem()
+        self.enhanced_entry = MLEnhancedEntrySystem(EnhancedEntrySystem())
         
         # DIP BUYING SETTINGS (keep from original)
         self.ENABLE_DIP_BUYING = True

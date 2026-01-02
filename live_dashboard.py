@@ -1,7 +1,8 @@
 from tracking.trade_logger import TradeLogger
 from profit_strategy_enhanced import ProfitStrategyEnhanced
 from data_layer.market_data import MarketData
-from enhanced_entry_system import MLEnhancedEntrySystem as EnhancedEntrySystem
+from entry_analyzer import EnhancedEntrySystem
+from enhanced_entry_system import MLEnhancedEntrySystem
 from datetime import datetime
 from config import TRADING_PAIR, MIN_CONFIDENCE, PROFIT_TARGET_GBP, STOP_LOSS_PCT
 import time
@@ -20,7 +21,7 @@ def display_dashboard():
     logger = TradeLogger("trading_bot.db")
     strategy = ProfitStrategyEnhanced("trading_bot.db")
     market = MarketData()
-    scorer = EnhancedEntrySystem()
+    scorer = MLEnhancedEntrySystem(EnhancedEntrySystem())
     
     clear_screen()
     
