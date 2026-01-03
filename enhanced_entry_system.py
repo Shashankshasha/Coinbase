@@ -78,10 +78,13 @@ class MLEnhancedEntrySystem:
                 'ml_score': 0,
                 'base_score': 0,
                 'confidence': 0.0,
+                'ml_confidence': 0.0,
+                'adaptive_threshold': 70,
                 'should_enter': False,
                 'reason': 'No market data available - check API credentials',
                 'quality': 'CRITICAL_ERROR',
-                'ml_reasoning': 'Cannot analyze without market data'
+                'ml_reasoning': 'Cannot analyze without market data',
+                'breakdown': {}
             }
 
         print(f"\n🧠 Running ML-Enhanced Analysis...")
