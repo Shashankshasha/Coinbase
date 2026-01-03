@@ -38,7 +38,8 @@ class CoinbaseClient:
         try:
             self.client = RESTClient(
                 api_key=COINBASE_API_KEY,
-                api_secret=api_secret
+                api_secret=api_secret,
+                timeout=30  # 30 second timeout to prevent hanging
             )
             print("✅ Coinbase API client initialized successfully")
         except Exception as e:

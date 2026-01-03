@@ -122,9 +122,19 @@ class MLTradingBot:
 
             return True  # Continue trading
 
+        except (ConnectionError, ConnectionResetError) as e:
+            print(f"\n⚠️ Connection error in trading cycle: {e}")
+            print("   Will retry on next cycle...")
+            return True  # Continue despite connection error
+
         except Exception as e:
-            print(f"\n❌ ERROR in trading cycle: {e}")
-            print(traceback.format_exc())
+            error_str = str(e).lower()
+            if 'connection' in error_str or 'timeout' in error_str or 'reset' in error_str:
+                print(f"\n⚠️ Network error in trading cycle: {e}")
+                print("   Will retry on next cycle...")
+            else:
+                print(f"\n❌ ERROR in trading cycle: {e}")
+                print(traceback.format_exc())
             return True  # Continue despite error
 
     def _check_safety_limits(self) -> bool:
@@ -318,7 +328,13 @@ class MLTradingBot:
         from apscheduler.schedulers.background import BackgroundScheduler
 
         # Create scheduler with background execution
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = BackgroundScheduler(
+            job_defaults={
+                'coalesce': True,  # Combine missed runs into one
+                'max_instances': 1,
+                'misfire_grace_time': 60  # Allow 60s grace period for delayed jobs
+            }
+        )
 
         # Add job with initial interval (scan mode)
         self.scheduler.add_job(
@@ -326,7 +342,7 @@ class MLTradingBot:
             'interval',
             minutes=SCAN_INTERVAL_MINUTES,
             id='trading_cycle',
-            max_instances=1  # Prevent overlapping runs
+            replace_existing=True
         )
 
         print("\n" + "="*70)
