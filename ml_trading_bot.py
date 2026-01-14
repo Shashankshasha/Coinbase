@@ -276,9 +276,29 @@ class MLTradingBot:
             print(f"   ❌ Error getting market data: {e}")
             return
 
-        # Calculate trade size
-        trade_size = self.strategy.calculate_trade_size()
-        print(f"   💰 Available capital: £{trade_size:.2f}")
+        # Get REAL Coinbase balance
+        try:
+            real_balances = snapshot.get('balances', {})
+            real_gbp = real_balances.get('GBP', 0)
+            print(f"   💰 Real Coinbase GBP balance: £{real_gbp:.2f}")
+
+            if real_gbp < 10:
+                print(f"   ❌ Insufficient funds! Need at least £10 to trade.")
+                print(f"   💡 Deposit GBP to your Coinbase account first.")
+                return
+        except Exception as e:
+            print(f"   ⚠️ Could not fetch real balance: {e}")
+            real_gbp = 0
+
+        # Calculate trade size (use real balance or config, whichever is lower)
+        config_trade_size = self.strategy.calculate_trade_size()
+        trade_size = min(config_trade_size, real_gbp - 5)  # Leave £5 buffer
+
+        if trade_size < 10:
+            print(f"   ❌ Trade size too small (£{trade_size:.2f}). Need more funds.")
+            return
+
+        print(f"   💰 Trade size: £{trade_size:.2f}")
 
         # Get ML-enhanced buy decision
         try:
