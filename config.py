@@ -28,16 +28,16 @@ if COINBASE_API_SECRET and '\\n' in COINBASE_API_SECRET:
 # TRADING SETTINGS
 # ============================================================================
 
-TRADING_MODE = "paper"  # PAPER TRADING - Test mode, no real money
+TRADING_MODE = "live"  # LIVE TRADING - Real money on Coinbase
 TRADING_PAIR = "BTC-GBP"
 
 # ============================================================================
 # INVESTMENT & CAPITAL
 # ============================================================================
 
-# Update these values to match your actual Coinbase account balance
-INITIAL_CAPITAL = 500.00  # UPDATE THIS: Set to your actual GBP balance in Coinbase
-TRADE_AMOUNT_GBP = 495.00  # UPDATE THIS: Set to INITIAL_CAPITAL minus £5 buffer
+# £1000 LIVE TRADING CONFIGURATION
+INITIAL_CAPITAL = 1000.00  # Your actual GBP balance in Coinbase
+TRADE_AMOUNT_GBP = 990.00  # Leave £10 buffer for fees/rounding
 
 # ============================================================================
 # FEE STRUCTURE
@@ -73,7 +73,7 @@ API_COST_GBP = 0.10          # Claude API cost per trading cycle (~£0.08-0.10)
 # - Strong trend: £6.00-£12.00 (+200-500%)
 # ============================================================================
 
-PROFIT_TARGET_GBP = 2.0      # £2.00 net profit target (OPTIMIZED!)
+PROFIT_TARGET_GBP = 4.0      # £4.00 net profit target (scaled for £1000)
 PROFIT_TARGET_PCT = 0.028    # ~2.7% price movement needed
 
 # ============================================================================
@@ -127,7 +127,7 @@ STOP_LOSS_PCT = 0.010       # 0.5% stop loss (MUCH TIGHTER!)
 # Result: PROFITABLE! ✅
 
 MAX_POSITION_SIZE = 10000    # Maximum position size
-MIN_CONFIDENCE = 0.70      # 65% minimum confidence for trades
+MIN_CONFIDENCE = 0.75      # 75% minimum confidence for trades (higher = safer)
 
 # ============================================================================
 # DYNAMIC INTERVAL SETTINGS
@@ -149,13 +149,13 @@ MACD_SLOW = 26               # MACD slow period
 MACD_SIGNAL = 9              # MACD signal period
 
 # ============================================================================
-# SAFETY LIMITS
+# SAFETY LIMITS - CONSERVATIVE FOR £1000 CAPITAL
 # ============================================================================
 
-MAX_DAILY_TRADES = 20        # Maximum 20 trades per day (realistic limit)
-MAX_CONSECUTIVE_LOSSES = 3   # Stop after 3 losses in a row (tighter safety)
-MIN_CAPITAL_THRESHOLD = 475.0  # Stop if capital drops below £475 (5% drawdown)
-COOLDOWN_MINUTES = 5         # Minimum minutes between trades (prevent overtrading)
+MAX_DAILY_TRADES = 10        # Maximum 10 trades per day (conservative)
+MAX_CONSECUTIVE_LOSSES = 2   # Stop after 2 losses in a row (extra safety!)
+MIN_CAPITAL_THRESHOLD = 950.0  # Stop if capital drops below £950 (5% max drawdown)
+COOLDOWN_MINUTES = 10        # 10 min between trades (prevent overtrading)
 
 # ============================================================================
 # COMPOUNDING
