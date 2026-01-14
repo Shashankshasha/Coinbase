@@ -149,13 +149,13 @@ MACD_SLOW = 26               # MACD slow period
 MACD_SIGNAL = 9              # MACD signal period
 
 # ============================================================================
-# SAFETY LIMITS - CONSERVATIVE FOR £1000 CAPITAL
+# SAFETY LIMITS - ULTRA CONSERVATIVE FOR £1000 CAPITAL
 # ============================================================================
 
-MAX_DAILY_TRADES = 10        # Maximum 10 trades per day (conservative)
+MAX_DAILY_TRADES = 5         # Maximum 5 trades per day (very conservative)
 MAX_CONSECUTIVE_LOSSES = 2   # Stop after 2 losses in a row (extra safety!)
-MIN_CAPITAL_THRESHOLD = 950.0  # Stop if capital drops below £950 (5% max drawdown)
-COOLDOWN_MINUTES = 10        # 10 min between trades (prevent overtrading)
+MIN_CAPITAL_THRESHOLD = 980.0  # Stop if capital drops below £980 (£20 max loss!)
+COOLDOWN_MINUTES = 15        # 15 min between trades (prevent overtrading)
 
 # ============================================================================
 # COMPOUNDING
