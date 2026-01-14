@@ -122,21 +122,30 @@ def display_dashboard():
             print(f"\n   ⏸️  DECISION: SKIP (Score below 70)")
     
     # ================================================================
-    # ACCOUNT STATUS
+    # ACCOUNT STATUS - REAL COINBASE BALANCE
     # ================================================================
     daily = strategy.get_daily_stats()
     pnl_data = logger.db.get_total_pnl()
-    
-    print(f"\n💰 ACCOUNT")
+
+    # Get REAL Coinbase balance
+    real_balances = snapshot.get('balances', {}) if snapshot else {}
+    real_gbp = real_balances.get('GBP', 0)
+    real_btc = real_balances.get('BTC', 0)
+
+    print(f"\n💰 COINBASE ACCOUNT (REAL)")
     print("-" * 80)
-    
-    # Capital and return
-    capital = daily['current_capital']
+    print(f"   GBP Balance: £{real_gbp:.2f}")
+    if real_btc > 0:
+        print(f"   BTC Balance: {real_btc:.8f}")
+
+    if real_gbp < 10:
+        print(f"   ⚠️  INSUFFICIENT FUNDS - Deposit GBP to trade!")
+
+    # Trading stats
     return_amt = daily['total_return']
     return_pct = (return_amt / daily['initial_capital']) * 100 if daily['initial_capital'] > 0 else 0
-    
     return_icon = "📈" if return_amt >= 0 else "📉"
-    print(f"   Capital: £{capital:.2f} | Return: {return_icon} £{return_amt:+.2f} ({return_pct:+.1f}%)")
+    print(f"   Bot Return: {return_icon} £{return_amt:+.2f} ({return_pct:+.1f}%)")
     
     # Performance stats
     if pnl_data['total_trades'] > 0:
@@ -369,6 +378,19 @@ def display_dashboard():
     else:
         print(f"   No trades yet")
     
+    # ================================================================
+    # HOW IT WORKS
+    # ================================================================
+    print(f"\n📖 HOW TRADING WORKS:")
+    print("-" * 80)
+    print(f"   1. ML scores market (0-100) every 3 mins")
+    print(f"   2. If score >= 70 → Claude AI analyzes trade")
+    print(f"   3. If Claude approves → Bot places BUY order")
+    print(f"   4. Bot monitors position for EXIT signal")
+    print(f"   5. Sells at profit target or stop loss")
+    if real_gbp < 10:
+        print(f"\n   ⚠️  BLOCKED: Need £10+ GBP in Coinbase to trade!")
+
     # ================================================================
     # FOOTER
     # ================================================================

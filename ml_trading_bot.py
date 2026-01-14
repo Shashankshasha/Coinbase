@@ -146,13 +146,20 @@ class MLTradingBot:
         """
         # Get daily stats
         daily_stats = self.strategy.get_daily_stats()
-        current_capital = daily_stats['current_capital']
+
+        # Get REAL Coinbase balance
+        try:
+            snapshot = self.market.get_full_market_snapshot(self.product_id)
+            real_balances = snapshot.get('balances', {})
+            real_gbp = real_balances.get('GBP', 0)
+        except:
+            real_gbp = 0
 
         print(f"\n📊 Today's Performance:")
         print(f"   Trades: {daily_stats['trades_today']}/{MAX_DAILY_TRADES}")
         print(f"   Completed: {daily_stats['completed_today']}")
         print(f"   Profit Today: £{daily_stats['profit_today']:.2f}")
-        print(f"   Current Capital: £{current_capital:.2f}")
+        print(f"   💰 Coinbase GBP Balance: £{real_gbp:.2f}")
         print(f"   Total Return: £{daily_stats['total_return']:.2f}")
 
         # Get ML performance
@@ -170,11 +177,11 @@ class MLTradingBot:
             print("   Stopping for today. Resume tomorrow.")
             return False
 
-        # Check 2: Capital threshold
-        if current_capital < MIN_CAPITAL_THRESHOLD:
-            print(f"\n⛔ SAFETY LIMIT: Capital below minimum (£{current_capital:.2f} < £{MIN_CAPITAL_THRESHOLD})")
-            print("   Stopping to preserve capital.")
-            return False
+        # Check 2: Insufficient real funds
+        if real_gbp < 10:
+            print(f"\n⚠️ LOW BALANCE: Only £{real_gbp:.2f} in Coinbase")
+            print("   Deposit funds to start trading.")
+            # Don't return False - just warn, let the entry handler block trades
 
         # Check 3: Consecutive losses
         if self.consecutive_losses >= MAX_CONSECUTIVE_LOSSES:
