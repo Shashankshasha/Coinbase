@@ -188,10 +188,29 @@ ADAPTIVE_THRESHOLD_ADJUSTMENT = 3  # Points adjustment per evaluation
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 LLM_MODEL = "claude-sonnet-4-5-20250929"  # Claude model for decisions
 
-# LLM call optimization
-SKIP_LLM_BELOW_SCORE = 50  # Skip LLM if score below this (clear HOLD)
-SKIP_LLM_ABOVE_SCORE = 85  # Skip LLM if score above this (clear BUY)
+# =============================================================================
+# LLM CALL OPTIMIZATION - COST SAVING MODE
+# =============================================================================
+#
+# Mode: "minimal" = 2 calls/day (recommended for cost saving)
+#       "smart"   = Call only in uncertain zones (3-5 calls/day)
+#       "always"  = Call on every opportunity (expensive!)
+#
+LLM_CALL_MODE = "minimal"  # "minimal", "smart", or "always"
+
+# MINIMAL MODE: Only 2 Claude calls per day
+CALL_LLM_ON_DAY_START = True   # 1 call: Morning direction (CALL/PUT)
+CALL_LLM_ON_BUY = True         # 1 call: Confirm before buying
+CALL_LLM_ON_SELL = False       # No call on sell (ML handles exit)
+CALL_LLM_ON_HOLD = False       # No call for hold decisions
+
+# SMART MODE: Skip clear signals
+SKIP_LLM_BELOW_SCORE = 45  # Skip LLM if score below this (clear HOLD)
+SKIP_LLM_ABOVE_SCORE = 80  # Skip LLM if score above this (clear BUY)
+
+# Cost tracking
 LLM_COST_PER_CALL_INR = 5.0  # Estimated cost per Claude API call
+MAX_LLM_CALLS_PER_DAY = 3    # Hard limit on daily Claude calls
 
 # System prompt configuration
 LLM_TEMPERATURE = 0.1  # Low temperature for consistent decisions
