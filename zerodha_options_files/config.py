@@ -32,8 +32,8 @@ TRADING_MODE: TradingMode = TradingMode.PAPER  # Switch to LIVE for real trading
 # ZERODHA KITE API CREDENTIALS
 # =============================================================================
 
-KITE_API_KEY = os.getenv("KITE_API_KEY", "your_api_key")
-KITE_API_SECRET = os.getenv("KITE_API_SECRET", "your_api_secret")
+KITE_API_KEY = os.getenv("KITE_API_KEY", "yype4q873n35osiy")
+KITE_API_SECRET = os.getenv("KITE_API_SECRET", "6dhvaa19l2btsh7mray1uqp9sqs9nmi3")
 KITE_ACCESS_TOKEN = os.getenv("KITE_ACCESS_TOKEN", "")  # Generated daily via login
 KITE_REQUEST_TOKEN = os.getenv("KITE_REQUEST_TOKEN", "")  # From redirect URL
 
