@@ -4,8 +4,8 @@
 
 set -e
 
-COINBASE_DIR="/Users/shashanksingh/Coinbase"
-ZERODHA_DIR="/Users/shashanksingh/ZerodhaOptionsBot"
+COINBASE_DIR="$HOME/ai/Coinbase"
+ZERODHA_DIR="$HOME/ZerodhaOptionsBot"
 BRANCH="claude/options-trading-bot-wUa0n"
 
 echo "🔄 Syncing ZerodhaOptionsBot files..."
