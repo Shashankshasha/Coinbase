@@ -57,7 +57,7 @@ def display_dashboard():
         # Score bar
         bar_length = 50
         filled = int((score / 100) * bar_length)
-        threshold = int((70 / 100) * bar_length)
+        threshold = int((60 / 100) * bar_length)
         
         bar = ""
         for i in range(bar_length):
@@ -79,7 +79,7 @@ def display_dashboard():
             emoji = "❌"
         
         print(f"   {emoji} Score: {score}/100 ({quality})")
-        print(f"   [{bar}] 75% threshold")
+        print(f"   [{bar}] 60% threshold")
         
         # Factor breakdown (compact)
         breakdown = analysis.get('breakdown', {})
@@ -384,7 +384,7 @@ def display_dashboard():
     print(f"\n📖 HOW TRADING WORKS:")
     print("-" * 80)
     print(f"   1. ML scores market (0-100) every 3 mins")
-    print(f"   2. If score >= 70 → Claude AI analyzes trade")
+    print(f"   2. If score >= 60 → Claude AI analyzes trade")
     print(f"   3. If Claude approves → Bot places BUY order")
     print(f"   4. Bot monitors position for EXIT signal")
     print(f"   5. Sells at profit target or stop loss")

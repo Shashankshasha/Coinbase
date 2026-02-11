@@ -96,7 +96,7 @@ class EnhancedEntrySystem:
         reason = self._build_reason(breakdown)
 
         # Decision thresholds
-        should_enter = total_score >= 70  # 70+ = good entry
+        should_enter = total_score >= 60  # 60+ = good entry (lowered to catch dips)
         confidence = total_score / 100.0
 
         return {

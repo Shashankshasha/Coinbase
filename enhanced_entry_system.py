@@ -44,7 +44,7 @@ class MLEnhancedEntrySystem:
         self.trade_outcomes = deque(maxlen=1000)  # Actual results
         
         # Adaptive threshold
-        self.adaptive_threshold = 70.0  # Starts at 70, learns from results
+        self.adaptive_threshold = 60.0  # Lowered to 60 to catch more dips
         self.threshold_history = deque(maxlen=100)
         
         # Model paths
